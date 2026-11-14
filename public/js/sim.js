@@ -1,6 +1,6 @@
 // Residents' daily lives, movement, choices and conversations.
 import { findPath } from "./map.js";
-import { RESIDENTS, PLACES, COMMUNITIES } from "./residents.js";
+import { RESIDENTS, PLACES, COMMUNITIES, registerResident, unregisterResident } from "./residents.js";
 import { offlineLine, offlineMemory } from "./offline.js";
 import { Society, inRange } from "./society.js";
 
@@ -62,6 +62,31 @@ export class Sim {
 
   get hour() { return Math.floor((this.time % 1440) / 60); }
 
+  // ---------- population changes ----------
+  addResident(res, fresh) {
+    registerResident(res);
+    const a = new Agent(res, this.town);
+    this.society.initAgent(a);
+    if (fresh) { a.coins = 60; a.mood = 75; a.rep = 50; }
+    this.agents.push(a);
+    if (this.started) this.society.planDay(a);
+    this.ui.addResident?.(a);
+    return a;
+  }
+  removeResident(a, silent = false) {
+    if (a.state === "talking") { a.leaving = true; return; } // finish the chat first
+    this.agents = this.agents.filter((x) => x !== a);
+    unregisterResident(a.id);
+    if (this.society.mayor === a.id) this.society.mayor = null;
+    this.ui.removeResident?.(a);
+    if (!silent) this.save();
+  }
+
+  personaOf(a) {
+    const r = a.res;
+    return r.newcomer ? { id: r.id, name: r.name, model: r.model, role: r.role, personality: r.personality, style: r.style } : undefined;
+  }
+
   // Called once the server told us which models are live.
   start() {
     if (this.started) return;
@@ -75,13 +100,13 @@ export class Sim {
     try {
       const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
       if (!saved) return;
+      this.society.restore(saved.society); // brings back newcomers and departures first
       for (const a of this.agents) {
         const s = saved.agents?.[a.id];
         if (s) { a.memories = s.memories ?? []; a.rel = s.rel ?? {}; }
       }
       this.news = saved.news ?? [];
       if (saved.time) this.time = Math.floor(saved.time / 1440) * 1440 + 7 * 60 + 30; // resume next morning
-      this.society.restore(saved.society);
     } catch (e) { console.warn("could not load save", e); }
   }
   save() {
@@ -246,14 +271,14 @@ export class Sim {
     const maxTurns = Math.floor(rand(4, 8));
     let speaker = a, listener = b;
     for (let turn = 0; turn < maxTurns; turn++) {
-      speaker.bubble = { typing: true };
+      speaker.bubble = { typing: true, born: this.realTime };
       const { text, end } = await this.getLine(speaker, listener, convo, turn, maxTurns);
       speaker.bubble = null;
       if (!text) break;
-      convo.history.push({ id: speaker.id, text });
+      convo.history.push({ id: speaker.id, name: speaker.res.name, text });
       this.ui.addLine(entry, speaker, text);
       const ms = Math.min(7500, Math.max(2600, text.length * 55));
-      speaker.bubble = { text, until: this.realTime + ms / 1000 };
+      speaker.bubble = { text, until: this.realTime + ms / 1000, born: this.realTime };
       listener.bubble = null;
       speaker.speaking = true;
       await this.waitReal(ms * 0.75);
@@ -274,6 +299,7 @@ export class Sim {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             speakerId: speaker.id, listenerId: listener.id,
+            persona: this.personaOf(speaker), listenerPersona: this.personaOf(listener),
             time: `Day ${t.day}, ${t.text} (${ctx.period})`, place: convo.place,
             activity: speaker.prevState === "walking" ? "walking through town" : speaker.activityBefore ?? "hanging out",
             history: convo.history, turn, maxTurns, news: this.news,
@@ -301,7 +327,7 @@ export class Sim {
         try {
           const res = await fetch("/api/reflect", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ agentId: p.id, otherId: q.id, history, place }),
+            body: JSON.stringify({ agentId: p.id, otherId: q.id, history, place, persona: this.personaOf(p), otherPersona: this.personaOf(q) }),
           });
           if (res.ok) text = (await res.json()).memory;
         } catch {}
@@ -318,6 +344,7 @@ export class Sim {
     }
     this.convos.delete(convo);
     this.ui.endConversation(entry);
+    for (const p of [a, b]) if (p.leaving) { p.leaving = false; this.removeResident(p); }
     await Promise.all([reflect(a, b), reflect(b, a), this.society.afterConversation(convo)]);
     this.save();
     this.ui.refreshCard();
