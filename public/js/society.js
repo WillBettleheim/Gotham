@@ -228,7 +228,7 @@ export class Society {
 
   // ---------- arriving places ----------
   onArrive(a) {
-    if (a.place === "cafe" && a.hunger > 45) this.eat(a);
+    if ((a.place === "cafe" || a.place === "store") && a.hunger > 45) this.eat(a);
     if (a.candidate && this.election.phase === "rally" && a.place === "plaza" && a.speech) {
       a.bubble = { text: a.speech, until: this.sim.realTime + 14 };
       this.log("📣", `${a.res.name} gave a campaign speech: "${a.speech}"`, "election", true, a.id);
@@ -240,7 +240,7 @@ export class Society {
     if (a.coins >= FOOD_PRICE) {
       a.coins -= FOOD_PRICE; if (owner) owner.coins += FOOD_PRICE; else this.treasury += FOOD_PRICE;
       a.hunger = clamp(a.hunger - 70); a.mood = clamp(a.mood + 4);
-      a.activity = "eating at the café";
+      a.activity = a.place === "store" ? "grabbing bread at the General Store" : "eating at the Inn";
       return;
     }
     // Broke and hungry: steal, or go without.
@@ -251,7 +251,7 @@ export class Society {
       a.activity = "sneaking a pastry";
       if (owner) owner.mood = clamp(owner.mood - 6);
       const law = this.law("theft");
-      if (law) this.violate(a, law, "stole food from the café", owner ? 1 : 0);
+      if (law) this.violate(a, law, "stole food from the Inn", owner ? 1 : 0);
       else this.log("🥐", `${a.res.name} took food without paying. Stealing isn't illegal in Gotham, but people noticed.`, "crime");
       a.rep = clamp(a.rep - 4);
     } else {
@@ -323,7 +323,7 @@ export class Society {
 
   release(a) {
     const door = this.sim.town.special.jail.door;
-    a.x = door.x; a.y = door.y + 1; a.state = "idle"; a.place = "courthouse";
+    a.x = door.x; a.y = door.y; a.state = "idle"; a.place = "jail";
     a.activity = "just released from jail"; a.dwellUntil = this.sim.time + 10;
     a.escort = false;
     this.log("🔓", `${a.res.name} was released from jail.`, "crime", true, a.id);
