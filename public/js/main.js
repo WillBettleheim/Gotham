@@ -1,4 +1,4 @@
-import { T, W, H, buildTown, renderStatic } from "./map.js";
+import { T, W, H, buildTown, renderStatic, riverX } from "./map.js";
 import { drawCharacter, roundRect } from "./sprites.js";
 import { MODELS, COMMUNITIES } from "./residents.js";
 import { Sim, fmtTime, periodOf } from "./sim.js";
@@ -10,7 +10,7 @@ const light = document.createElement("canvas");
 const lctx = light.getContext("2d");
 
 const town = buildTown();
-const layers = renderStatic(town);
+const layers = await renderStatic(town);
 const $ = (id) => document.getElementById(id);
 
 const ui = createUI();
@@ -36,7 +36,7 @@ $("resetBtn").onclick = () => { if (confirm("Start Gotham over? All memories, mo
 const sparks = [];
 sim.society.on((type) => {
   if (type !== "elected") return;
-  for (let k = 0; k < 6; k++) setTimeout(() => burst(28 * T + (Math.random() - 0.5) * 300, 16 * T - Math.random() * 120), k * 450);
+  for (let k = 0; k < 6; k++) setTimeout(() => burst(town.fountain.x + (Math.random() - 0.5) * 300, town.fountain.y - 90 - Math.random() * 120), k * 450);
 });
 function burst(x, y) {
   const hue = Math.floor(Math.random() * 360);
@@ -72,7 +72,7 @@ function clampCam() {
 }
 addEventListener("resize", resize);
 resize();
-cam.x = 28 * T - vw / cam.zoom / 2; cam.y = 18 * T - vh / cam.zoom / 2; clampCam();
+cam.x = town.fountain.x - vw / cam.zoom / 2; cam.y = town.fountain.y - vh / cam.zoom / 2; clampCam();
 
 let drag = null;
 canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0 }; canvas.setPointerCapture(e.pointerId); });
@@ -112,7 +112,7 @@ setTimeout(() => ($("hint").style.opacity = 0), 9000);
 // ---------- ambient life ----------
 const ducks = [0, 1, 2].map((i) => ({ t: i * 2.1, speed: 0.08 + i * 0.03, r: 0.6 + i * 0.12 }));
 const smoke = [];
-const fireflies = Array.from({ length: 24 }, () => ({ x: (2 + Math.random() * 18) * T, y: (21 + Math.random() * 8) * T, p: Math.random() * 10 }));
+const fireflies = Array.from({ length: 34 }, (_, i) => i % 2 ? { x: (19 + Math.random() * 10) * T, y: (13 + Math.random() * 6) * T, p: Math.random() * 10 } : { x: (1 + Math.random() * 7) * T, y: (5 + Math.random() * 24) * T, p: Math.random() * 10 });
 
 function darkness(min) {
   const h = (min % 1440) / 60;
@@ -151,6 +151,7 @@ function frame(now) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(layers.ground, 0, 0);
   drawWaterLife(t);
+  drawWaterfall(t);
   drawFountain(t);
   if (sim.society.election.phase !== "idle") drawBunting(t);
 
@@ -184,7 +185,8 @@ function frame(now) {
 
 function drawBunting(t) {
   const cols = Object.values(COMMUNITIES).map((c) => c.color);
-  for (const [y0, x0, x1] of [[14, 21, 35], [26, 21, 35]]) {
+  const P = town.plaza;
+  for (const [y0, x0, x1] of [[P.y, P.x, P.x + P.w], [P.y + P.h, P.x, P.x + P.w]]) {
     const y = y0 * T - 4, sag = 14;
     ctx.strokeStyle = "rgba(60,40,30,0.7)"; ctx.lineWidth = 1;
     ctx.beginPath();
@@ -221,41 +223,55 @@ function drawSparks(dt) {
 }
 
 function drawFountain(t) {
-  const cx = 28 * T, cy = 20 * T;
-  ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.beginPath(); ctx.ellipse(cx + 4, cy + 8, 60, 34, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#a39a8c"; ctx.beginPath(); ctx.ellipse(cx, cy, 60, 34, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#c9c0b1"; ctx.beginPath(); ctx.ellipse(cx, cy - 3, 57, 31, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#4fa6dc"; ctx.beginPath(); ctx.ellipse(cx, cy - 2, 49, 25, 0, 0, Math.PI * 2); ctx.fill();
+  // the picture has the fountain; add moving water on top of it
+  const { x: cx, y: cy } = town.fountain;
   for (let i = 0; i < 3; i++) {
     const r = ((t * 0.6 + i / 3) % 1);
-    ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - r)})`; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(cx, cy - 2, 10 + r * 36, 5 + r * 18, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${0.45 * (1 - r)})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(cx, cy + 6, 12 + r * 28, 5 + r * 11, 0, 0, Math.PI * 2); ctx.stroke();
   }
-  ctx.fillStyle = "#b8af9f"; ctx.fillRect(cx - 6, cy - 30, 12, 28);
-  ctx.fillStyle = "#d8d0c2"; ctx.beginPath(); ctx.ellipse(cx, cy - 30, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
-  for (let i = 0; i < 14; i++) {
-    const p = ((t * 0.9 + i / 14) % 1), ang = (i / 14) * Math.PI * 2;
-    const x = cx + Math.cos(ang) * p * 26, y = cy - 34 - Math.sin(p * Math.PI) * 18 + p * 22 + Math.sin(ang) * p * 10;
-    ctx.fillStyle = `rgba(200,235,255,${0.9 - p * 0.6})`; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+  for (let i = 0; i < 16; i++) {
+    const p = ((t * 0.9 + i / 16) % 1), ang = (i / 16) * Math.PI * 2;
+    const x = cx + Math.cos(ang) * p * 14, y = cy - 30 - Math.sin(p * Math.PI) * 9 + p * 18 + Math.sin(ang) * p * 5;
+    ctx.fillStyle = `rgba(220,245,255,${0.85 - p * 0.6})`; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
   }
 }
 
+// ducks paddle up and down the river
+const riverDucks = [0, 1, 2, 3].map((i) => ({ y: 8 + i * 7, v: (i % 2 ? 1 : -1) * (0.25 + i * 0.05), wob: i * 1.7 }));
 function drawWaterLife(t) {
-  const { cx, cy, rx, ry } = town.pond;
-  for (const d of ducks) {
-    const a = t * d.speed + d.t;
-    const x = cx * T + Math.cos(a) * rx * T * d.r, y = cy * T + Math.sin(a) * ry * T * d.r;
-    const dir = -Math.sin(a) > 0 ? 1 : -1;
-    ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.beginPath(); ctx.ellipse(x, y + 4, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#fafafa"; ctx.beginPath(); ctx.ellipse(x, y, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x + dir * 5, y - 5, 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#f2a33a"; ctx.fillRect(x + dir * 8 - (dir < 0 ? 3 : 0), y - 5, 3, 2);
-    ctx.fillStyle = "#222"; ctx.fillRect(x + dir * 6, y - 6, 1.5, 1.5);
+  for (const d of riverDucks) {
+    let y = d.y + d.v * t;
+    const span = 32 - 7;
+    y = 7 + (((y - 7) % span) + span) % span;
+    const x = riverX(y) * T + Math.sin(t * 0.8 + d.wob) * 6, py = y * T;
+    if (y > 12.6 && y < 16.2) continue; // under the bridge
+    const dir = d.v > 0 ? 1 : -1;
+    ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.beginPath(); ctx.ellipse(x, py + 4, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fafafa"; ctx.beginPath(); ctx.ellipse(x, py, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, py + dir * 6, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#f2a33a"; ctx.fillRect(x - 1, py + dir * 9 - (dir < 0 ? 2 : 0), 2, 3);
   }
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 26; i++) {
     const s = (t * 0.5 + i * 0.37) % 1;
-    const x = (cx + Math.cos(i * 2.3) * rx * 0.7) * T, y = (cy + Math.sin(i * 1.7) * ry * 0.6) * T;
-    ctx.fillStyle = `rgba(255,255,255,${Math.sin(s * Math.PI) * 0.7})`; ctx.fillRect(x, y, 4, 1.5);
+    const y = 5 + ((i * 7.3) % 33);
+    const x = (riverX(y) + Math.sin(i * 2.3) * 0.8) * T;
+    ctx.fillStyle = `rgba(255,255,255,${Math.sin(s * Math.PI) * 0.6})`; ctx.fillRect(x, y * T + s * 20, 5, 1.5);
+  }
+}
+
+function drawWaterfall(t) {
+  const w = town.waterfall;
+  for (let i = 0; i < 8; i++) {
+    const x = w.x + 4 + i * ((w.w - 8) / 7);
+    const off = ((t * 110 + i * 37) % 46);
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    for (let y = w.y - 46 + off; y < w.y + w.h - 12; y += 46) ctx.fillRect(x, Math.max(w.y, y), 2, 16);
+  }
+  for (let i = 0; i < 9; i++) { // foam at the bottom
+    const a = t * 2 + i;
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + Math.sin(a) * 0.2})`;
+    ctx.beginPath(); ctx.arc(w.x + 2 + (i * 7.3) % w.w, w.y + w.h - 4 + Math.sin(a * 1.3) * 3, 4 + Math.sin(a) * 2, 0, Math.PI * 2); ctx.fill();
   }
 }
 
@@ -291,8 +307,8 @@ function drawLighting(dark, warm, t) {
     g.addColorStop(0, `rgba(0,0,0,${s})`); g.addColorStop(1, "rgba(0,0,0,0)");
     lctx.fillStyle = g; lctx.fillRect(x - r, y - r, r * 2, r * 2);
   };
-  for (const l of town.lamps) hole(l.x * T + 16, l.y * T + 8, 95, 0.95);
-  for (const w of town.windows) hole(w.x, w.y + 10, 42, 0.8);
+  for (const w of town.windows) hole(w.x, w.y + 6, 34 + 26 * (w.size ?? 1), 0.85);
+  if (town.forge) hole(town.forge.x, town.forge.y + 10, 60, 0.9);
   for (const a of sim.agents) if (a.visible) hole((a.x + 0.5) * T, (a.y + 0.5) * T, 34, 0.35);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -305,8 +321,7 @@ function drawLighting(dark, warm, t) {
     g.addColorStop(0, `rgba(255,190,110,${a})`); g.addColorStop(1, "rgba(255,190,110,0)");
     ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
   };
-  for (const l of town.lamps) glow(l.x * T + 16, l.y * T + 7, 40, dark * 0.5 * (0.92 + Math.sin(t * 3 + l.x) * 0.08));
-  for (const w of town.windows) glow(w.x, w.y, 20, dark * 0.55);
+  for (const w of town.windows) glow(w.x, w.y, 14 + 10 * (w.size ?? 1), dark * 0.6 * (0.94 + Math.sin(t * 3 + w.x) * 0.06));
   ctx.restore();
 }
 
