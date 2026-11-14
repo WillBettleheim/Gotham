@@ -53,7 +53,9 @@ h1 { margin: 0; font-size: 24px; font-weight: 800; }
 .badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--panel-2); color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
 .badge.live { background: #1f5f45; color: #8ff0c4; }
 .badge.off { background: #4a3a22; color: #ffd38a; }
-.legend { display: flex; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend span { opacity: 0.55; }
+.legend span.on { opacity: 1; color: var(--text); }
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--c); margin-right: 5px; }
 
 #side section { padding: 12px 18px; border-bottom: 1px solid var(--line); }
