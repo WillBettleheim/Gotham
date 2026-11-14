@@ -175,7 +175,7 @@ function frame(now) {
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   for (const a of visible) drawTag(a);
-  for (const a of visible) if (a.bubble) drawBubble(a, t);
+  drawBubbles(visible.filter((a) => a.bubble && (!a.bubble.until || a.bubble.until > sim.realTime - 0.4)), t);
 
   const ft = fmtTime(sim.time);
   $("clock").textContent = ft.text;
@@ -351,23 +351,66 @@ function drawTag(a) {
   ctx.fillText(label, s.x - w / 2 + 14, y + 0.5);
 }
 
-function drawBubble(a, t) {
-  const s = toScreen(a);
-  const baseY = s.y - 30 * cam.zoom - 26;
-  ctx.font = "600 13px Nunito, system-ui, sans-serif";
-  let lines;
-  if (a.bubble.typing) lines = ["•••".slice(0, 1 + (Math.floor(t * 3) % 3))];
-  else lines = wrap(a.bubble.text, 210);
-  const lh = 17, pad = 9;
-  const w = a.bubble.typing ? 44 : Math.max(...lines.map((l) => ctx.measureText(l).width)) + pad * 2;
-  const h = lines.length * lh + pad * 2 - 4;
-  let x = Math.max(6, Math.min(vw - w - 6, s.x - w / 2)), y = baseY - h;
-  ctx.fillStyle = "rgba(0,0,0,0.18)"; roundRect(ctx, x + 2, y + 3, w, h, 10); ctx.fill();
-  ctx.fillStyle = "#fffdf7"; roundRect(ctx, x, y, w, h, 10); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(s.x - 6, y + h - 1); ctx.lineTo(s.x, y + h + 7); ctx.lineTo(s.x + 6, y + h - 1); ctx.fill();
-  ctx.fillStyle = MODELS[a.res.model].color; ctx.fillRect(x + 8, y, w - 16, 2.5);
-  ctx.fillStyle = "#2a2230"; ctx.textAlign = a.bubble.typing ? "center" : "left"; ctx.textBaseline = "top";
-  lines.forEach((l, i) => ctx.fillText(l, a.bubble.typing ? x + w / 2 : x + pad, y + pad + i * lh - 1));
+// Speech bubbles: a card with the speaker's name and model, fade-in, typing dots, and no overlaps.
+function drawBubbles(list, t) {
+  const now = sim.realTime;
+  const boxes = list.map((a) => {
+    const s = toScreen(a), b = a.bubble, m = MODELS[a.res.model];
+    ctx.font = "600 13px Nunito, system-ui, sans-serif";
+    const lines = b.typing ? [] : wrap(b.text, 230);
+    const textW = b.typing ? 34 : Math.max(...lines.map((l) => ctx.measureText(l).width));
+    ctx.font = "800 11px Nunito, system-ui, sans-serif";
+    const head = `${a.res.name} · ${m.short}${b.speech ? " · 📣 speech" : ""}`;
+    const headW = ctx.measureText(head).width + 14;
+    const w = Math.max(textW + 22, headW + 12, 70), h = (b.typing ? 20 : lines.length * 17 + 6) + 26;
+    const anchorY = s.y - 30 * cam.zoom - 20;
+    return { a, s, b, m, lines, head, w, h, x: Math.max(6, Math.min(vw - w - 6, s.x - w / 2)), y: anchorY - h, anchorY };
+  }).sort((p, q) => q.anchorY - p.anchorY);
+  // push bubbles up until they stop overlapping the ones already placed
+  const placed = [];
+  for (const bx of boxes) {
+    for (let guard = 0; guard < 20; guard++) {
+      const hit = placed.find((o) => bx.x < o.x + o.w + 4 && bx.x + bx.w + 4 > o.x && bx.y < o.y + o.h + 6 && bx.y + bx.h + 6 > o.y);
+      if (!hit) break;
+      bx.y = hit.y - bx.h - 8;
+    }
+    placed.push(bx);
+  }
+  for (const bx of placed) {
+    const { s, b, m, lines, head, w, h, x, y } = bx;
+    const age = now - (b.born ?? now);
+    const fadeOut = b.until ? Math.min(1, Math.max(0, (b.until - now + 0.4) / 0.4)) : 1;
+    const alpha = Math.min(1, age / 0.18) * fadeOut;
+    const pop = 0.9 + 0.1 * Math.min(1, age / 0.18);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(s.x, y + h); ctx.scale(pop, pop); ctx.translate(-s.x, -(y + h));
+    // tail (a line to the speaker when the bubble was pushed up)
+    ctx.strokeStyle = "rgba(255,253,247,0.9)"; ctx.lineWidth = 2;
+    if (bx.anchorY - (y + h) > 4) { ctx.beginPath(); ctx.moveTo(s.x, y + h); ctx.lineTo(s.x, bx.anchorY + 6); ctx.stroke(); }
+    ctx.fillStyle = "rgba(20,14,30,0.28)"; roundRect(ctx, x + 2, y + 4, w, h, 12); ctx.fill();
+    ctx.fillStyle = "#fffdf7"; roundRect(ctx, x, y, w, h, 12); ctx.fill();
+    ctx.strokeStyle = m.color; ctx.lineWidth = 2; roundRect(ctx, x + 1, y + 1, w - 2, h - 2, 11); ctx.stroke();
+    ctx.fillStyle = "#fffdf7";
+    ctx.beginPath(); ctx.moveTo(s.x - 7, y + h - 2); ctx.lineTo(s.x, y + h + 8); ctx.lineTo(s.x + 7, y + h - 2); ctx.fill();
+    ctx.strokeStyle = m.color; ctx.beginPath(); ctx.moveTo(s.x - 7, y + h - 1); ctx.lineTo(s.x, y + h + 8); ctx.lineTo(s.x + 7, y + h - 1); ctx.stroke();
+    // name tag
+    ctx.font = "800 11px Nunito, system-ui, sans-serif";
+    const tw = ctx.measureText(head).width + 14;
+    ctx.fillStyle = m.color; roundRect(ctx, x + 8, y + 6, tw, 16, 8); ctx.fill();
+    ctx.fillStyle = "#1d1a26"; ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.fillText(head, x + 15, y + 14.5);
+    if (b.typing) {
+      for (let i = 0; i < 3; i++) {
+        const bounce = Math.max(0, Math.sin(t * 7 - i * 0.8)) * 4;
+        ctx.fillStyle = "#8a7f99"; ctx.beginPath(); ctx.arc(x + 20 + i * 11, y + 36 - bounce, 3.2, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      ctx.font = "600 13px Nunito, system-ui, sans-serif";
+      ctx.fillStyle = "#2a2230"; ctx.textBaseline = "top";
+      lines.forEach((l, i) => ctx.fillText(l, x + 11, y + 28 + i * 17));
+    }
+    ctx.restore();
+  }
 }
 
 function wrap(text, max) {
