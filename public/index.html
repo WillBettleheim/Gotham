@@ -5,54 +5,101 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gotham · AI Town</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main id="stage">
     <canvas id="world"></canvas>
     <div id="hud">
-      <div class="clock-card">
+      <div class="clock-card glass">
         <div id="clock">07:30</div>
         <div id="day">Day 1 · morning</div>
       </div>
-      <div class="controls">
+      <div class="controls glass">
         <button id="pause" title="Pause (space)">⏸</button>
+        <button data-speed="0.5">½×</button>
         <button data-speed="1" class="on">1×</button>
         <button data-speed="2">2×</button>
         <button data-speed="5">5×</button>
+        <button data-speed="15">15×</button>
       </div>
+      <div class="ticker glass" id="ticker"><span>🏦 <b id="tTreasury">200</b></span><span>👑 <b id="tMayor">no mayor</b></span><span>⛓️ <b id="tJail">0</b></span></div>
     </div>
+    <div id="toasts"></div>
     <div id="hint">Drag to pan · scroll to zoom · click a resident</div>
     <div id="card" hidden></div>
   </main>
 
   <aside id="side">
     <header>
-      <h1>Gotham</h1>
-      <p class="sub">A little town where AI models live together.</p>
-      <div class="status"><span id="mode" class="badge">connecting…</span><span id="calls"></span></div>
+      <div class="brand">
+        <div class="logo">G</div>
+        <div><h1>Gotham</h1><p class="sub">A town where AI models live, work, vote and face the law.</p></div>
+      </div>
+      <div class="status"><span id="mode" class="badge">connecting…</span><span id="calls"></span><button id="resetBtn" class="link" title="Start the town over">Reset town</button></div>
       <div class="legend" id="legend"></div>
     </header>
 
-    <section>
-      <h2>Residents</h2>
-      <div id="residents"></div>
-    </section>
+    <nav id="tabs">
+      <button data-tab="town" class="on">🏘️ Town</button>
+      <button data-tab="chats">💬 Chats</button>
+      <button data-tab="laws">⚖️ Laws</button>
+      <button data-tab="politics">🗳️ Politics</button>
+      <button data-tab="gazette">📰 Gazette</button>
+    </nav>
 
-    <section>
-      <h2>Town news</h2>
-      <form id="newsForm">
-        <input id="newsInput" maxlength="160" placeholder="Announce something… e.g. “A traveling circus arrives tomorrow!”" />
-        <button type="submit">Post</button>
-      </form>
-      <div id="newsList"></div>
-    </section>
+    <div id="panes">
+      <section class="pane on" data-pane="town">
+        <h2>Residents</h2>
+        <div id="residents"></div>
+        <h2>Communities</h2>
+        <div id="communities"></div>
+      </section>
 
-    <section class="grow">
-      <h2>Conversations <span id="liveCount"></span></h2>
-      <div id="feed"><p class="empty">Nobody's chatted yet. Give them a moment to bump into each other…</p></div>
-    </section>
+      <section class="pane" data-pane="chats">
+        <h2>Town news</h2>
+        <form id="newsForm" class="row-form">
+          <input id="newsInput" maxlength="160" placeholder="Announce something… “A traveling circus arrives tomorrow!”" />
+          <button type="submit">Post</button>
+        </form>
+        <div id="newsList"></div>
+        <h2>Conversations <span id="liveCount"></span></h2>
+        <div id="feed"><p class="empty">Nobody's chatted yet. Give them a moment to bump into each other…</p></div>
+      </section>
+
+      <section class="pane" data-pane="laws">
+        <p class="intro">You are Gotham's <b>citizens' council</b>. The laws you pass are enforced: residents who get caught breaking them pay a fine or go to jail. Residents can't pay? Jail.</p>
+        <div id="proposals"></div>
+        <h2>Laws in force</h2>
+        <div id="lawList"></div>
+        <h2>Pass a new law</h2>
+        <form id="lawForm" class="law-form">
+          <label>Law <select id="lawType"></select></label>
+          <label id="lawParamWrap">Setting <input id="lawParam" type="number" /></label>
+          <label id="lawTextWrap" class="wide">Law text <input id="lawText" maxlength="160" placeholder="e.g. Nobody may talk about money in public." /></label>
+          <label id="lawWordsWrap" class="wide">Banned words (offline judging) <input id="lawWords" maxlength="120" placeholder="money, coins" /></label>
+          <label id="lawPenaltyWrap">Penalty <select id="lawPenaltyKind"><option value="fine">Fine (coins)</option><option value="jail">Jail (hours)</option></select></label>
+          <label id="lawAmountWrap">Amount <input id="lawAmount" type="number" min="1" max="500" /></label>
+          <p id="lawPreview" class="preview wide"></p>
+          <button type="submit" class="wide primary">Enact law</button>
+        </form>
+        <h2>Recent crimes</h2>
+        <div id="crimeList"></div>
+      </section>
+
+      <section class="pane" data-pane="politics">
+        <div id="mayorBox"></div>
+        <div id="electionBox"></div>
+        <h2>Past elections</h2>
+        <div id="history"></div>
+      </section>
+
+      <section class="pane" data-pane="gazette">
+        <div class="chips" id="gazetteFilters"></div>
+        <div id="gazette"></div>
+      </section>
+    </div>
   </aside>
 
   <script type="module" src="js/main.js"></script>
