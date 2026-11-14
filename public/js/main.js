@@ -43,14 +43,21 @@ const updateLiveCount = () => { const n = sim.convos.size; $("liveCount").textCo
 const sim = new Sim(town, ui);
 window.gotham = sim; // handy for poking at the town from the console
 
+const renderLegend = () => {
+  $("legend").innerHTML = Object.entries(MODELS)
+    .map(([k, m]) => `<span style="--c:${m.color}" class="${sim.liveModels[k] ? "on" : ""}" title="${m.label}: ${sim.liveModels[k] ? "live" : "offline chatter (no API key)"}">${m.short}</span>`)
+    .join("");
+};
 fetch("/api/status").then((r) => r.json()).then((s) => {
   sim.live = s.live;
-  $("mode").textContent = s.live ? "Live · Claude" : "Offline chatter";
+  sim.liveModels = s.liveModels ?? {};
+  const n = Object.values(sim.liveModels).filter(Boolean).length, total = Object.keys(MODELS).length;
+  $("mode").textContent = s.live ? `Live · ${n}/${total} models` : "Offline chatter";
   $("mode").className = `badge ${s.live ? "live" : "off"}`;
-  $("mode").title = s.live ? "Each resident speaks through its own Claude model" : "No API key on the server; residents use built-in lines";
+  $("mode").title = s.live ? "Residents with a bright dot talk through their real model" : "No API keys on the server; residents use built-in lines";
+  renderLegend();
 }).catch(() => { $("mode").textContent = "Offline chatter"; $("mode").className = "badge off"; });
-
-$("legend").innerHTML = Object.values(MODELS).map((m) => `<span style="--c:${m.color}">${m.label}</span>`).join("");
+renderLegend();
 
 // ---------- residents list ----------
 const resEls = {};
@@ -102,6 +109,7 @@ function renderCard() {
     <button class="close" title="Close">✕</button>
     <div class="top"><canvas width="128" height="128"></canvas>
       <div><h3>${a.res.name}</h3><span class="badge" style="background:${m.color}22;color:${m.color}">${m.label}</span>
+      <span class="role" style="font-size:11px">${sim.liveModels[a.res.model] ? "● live" : "○ offline chatter"}</span>
       <p class="role">${a.res.role}</p></div></div>
     <p class="now">Now: ${escapeHtml(a.activity)}</p>
     <h4>Personality</h4><p class="role">${a.res.personality}</p>
