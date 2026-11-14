@@ -16,13 +16,16 @@ export const MODELS = {
 export const PLACES = {
   home: { name: "home", acts: ["tidying up at home", "making tea at home"] },
   library: { name: "the Library", acts: ["browsing old books", "reading on the library steps", "returning a book"] },
-  cafe: { name: "The Warm Byte Café", acts: ["sipping coffee on the patio", "sharing a pastry", "people-watching at the café"] },
+  cafe: { name: "the Inn", acts: ["having a warm drink at the Inn", "sharing a pastry at the Inn", "people-watching from the Inn porch"] },
+  store: { name: "the General Store", acts: ["buying supplies at the General Store", "browsing the shelves", "chatting at the store counter"] },
+  clinic: { name: "the Clinic", acts: ["getting a checkup at the Clinic", "dropping off herbs at the Clinic", "waiting at the Clinic"] },
   plaza: { name: "Fountain Plaza", acts: ["sitting by the fountain", "strolling the plaza", "feeding the pigeons"] },
-  park: { name: "Willow Pond Park", acts: ["walking around the pond", "watching the ducks", "resting on a bench"] },
-  workshop: { name: "Orion's Workshop", acts: ["tinkering with gadgets", "sketching blueprints", "fixing a squeaky gear"] },
+  park: { name: "the riverside and the green", acts: ["watching the river", "listening to the waterfall", "resting on a bench", "watching the ducks"] },
+  market: { name: "the Market", acts: ["browsing the market stalls", "haggling over apples", "picking out fresh produce"] },
+  workshop: { name: "the Blacksmith", acts: ["tinkering at the forge", "sketching blueprints", "hammering a squeaky gear"] },
   garden: { name: "the Community Garden", acts: ["watering the vegetables", "pulling weeds", "checking on the pumpkins"] },
   townhall: { name: "Town Hall", acts: ["reading the notice board", "filing paperwork", "planning the harvest festival"] },
-  courthouse: { name: "the Courthouse", acts: ["reading the law book", "watching a hearing", "paying a fine"] },
+  courthouse: { name: "the court at Town Hall", acts: ["reading the law book", "watching a hearing", "paying a fine"] },
 };
 
 // home = index into the town's houses (0-5 north row, 6-8 south lane)
@@ -46,7 +49,7 @@ export const RESIDENTS = [
   },
   {
     id: "orion", name: "Orion", model: "claude-opus-5-5", home: 1,
-    role: "an inventor who runs the workshop by the garden",
+    role: "an inventor who runs the Blacksmith forge and lives in its back room",
     personality: "enthusiastic, scatterbrained, endlessly optimistic about prototypes that half-work; a night owl",
     style: "excited bursts, technical metaphors, laughs at his own failures",
     work: { place: "workshop", from: 11, to: 19 },
@@ -63,7 +66,7 @@ export const RESIDENTS = [
   },
   {
     id: "sonny", name: "Sonny", model: "claude-sonnet-5-5", home: 2,
-    role: "owner of The Warm Byte Café",
+    role: "owner of the Inn, Gotham's inn and tavern, where everyone comes to eat",
     personality: "jovial, generous, knows every bit of town gossip, can't resist a pun",
     style: "friendly and quick, shares news, offers food, sprinkles in puns",
     work: { place: "cafe", from: 7, to: 15 },
@@ -74,7 +77,7 @@ export const RESIDENTS = [
       "I'm testing a cinnamon latte today. It's a little too espresso-ive, maybe.",
       "Hana's tomatoes are going into tomorrow's soup special.",
       "Somebody tipped me with a poem yesterday. Best tip all week.",
-      "The café's been busy, everyone's talking about the harvest festival.",
+      "The Inn's been busy, everyone's talking about the harvest festival.",
     ],
     questions: ["What can I get you, the usual?", "Heard any good news lately?", "Sweet or savory today?"],
   },
@@ -87,7 +90,7 @@ export const RESIDENTS = [
     sleep: [23, 7],
     look: { skin: "#f5d0b5", hair: "#c0533c", hairStyle: "bun", shirt: "#4f9d8a", pants: "#3c4a5e" },
     topics: [
-      "The pond goes almost lavender just before sunset. I keep missing it.",
+      "The river goes almost lavender just before sunset. I keep missing it.",
       "I'm painting the whole town from the clock tower view. It's mostly roofs so far.",
       "I ran out of yellow, so this week everything I paint is a little blue.",
       "Your shadow is a lovely color right now, did you know?",
@@ -124,7 +127,7 @@ export const RESIDENTS = [
       "The pumpkins doubled overnight. They must be ambitious.",
       "Rain soon. The beans know first.",
       "A snail and I have reached an understanding about the lettuce.",
-      "I planted sunflowers by the café. Sonny pretends not to water them.",
+      "I planted sunflowers by the Inn. Sonny pretends not to water them.",
     ],
     questions: ["Do you want some radishes?", "Have you smelled the rain coming?", "What would you grow, if you had a plot?"],
   },
@@ -156,7 +159,7 @@ export const RESIDENTS = [
       "I'm mapping every bench in town. There are more than I expected!",
       "I just moved here. Everyone is so kind, it's a little overwhelming.",
       "Ophelia showed me an old map and now I have so many questions.",
-      "I counted the trees around the pond. I got a different number each time.",
+      "I counted the trees along the river. I got a different number each time.",
     ],
     questions: ["How long have you lived here?", "What's your favorite spot in town?", "Is there anywhere secret I should map?"],
   },
@@ -169,7 +172,7 @@ export const RESIDENTS = [
     sleep: [0, 7],
     look: { skin: "#e8b48f", hair: "#1e3a8a", hairStyle: "bun", shirt: "#3b82f6", pants: "#1f2937" },
     topics: [
-      "I got a photo of a heron landing on the pond. Perfect timing, if I say so myself.",
+      "I got a photo of a heron landing by the waterfall. Perfect timing, if I say so myself.",
       "Fun fact: the fountain loses about a bucket of water a day to the pigeons.",
       "Trivia night is Thursday. I'm defending my title, so bring your best.",
       "I'm making a photo wall of everyone in town. You're next!",
@@ -178,7 +181,7 @@ export const RESIDENTS = [
   },
   {
     id: "gus", name: "Gus", model: "gpt", home: 9,
-    role: "the baker who supplies The Warm Byte Café with bread every morning",
+    role: "the baker who runs the General Store and supplies the Inn with bread every morning",
     personality: "big-hearted, chatty, proud of his sourdough, gives advice whether you asked or not",
     style: "warm and talkative, helpful, a bit of a know-it-all in a lovable way",
     work: { place: "cafe", from: 5, to: 10 },
@@ -188,7 +191,7 @@ export const RESIDENTS = [
     topics: [
       "My sourdough starter is eleven years old. I call her Doris.",
       "I tried a rosemary loaf with Hana's herbs. Sold out by nine!",
-      "Sonny says my croissants are the reason people come to the café. He's not wrong.",
+      "Sonny says my croissants are the reason people come to the Inn. He's not wrong.",
       "Bread is just patience you can eat.",
     ],
     questions: ["Have you had breakfast? I've got rolls.", "What's your favorite bread?", "Need any advice? I've got plenty."],
@@ -205,13 +208,13 @@ export const RESIDENTS = [
       "I posted a new puzzle at Town Hall. Nobody has solved it. Yet.",
       "The plaza bricks follow a pattern. It's off by one in the north-west corner.",
       "I lost at chess to Hazel today. She doesn't know the rules, which is the impressive part.",
-      "There are exactly 412 steps from my door to the café. I recount weekly.",
+      "There are exactly 412 steps from my door to the Inn. I recount weekly.",
     ],
     questions: ["Do you play chess?", "Want to hear a puzzle?", "What's the best argument you've heard this week?"],
   },
   {
     id: "lola", name: "Lola", model: "llama", home: 11,
-    role: "a knitter who runs a yarn stall in the plaza and tells the best stories in town",
+    role: "a knitter who runs a yarn stall at the Market and tells the best stories in town",
     personality: "cozy, easygoing, open-hearted, loves sharing things freely and telling long stories",
     style: "relaxed and friendly, storyteller, generous",
     work: { place: "plaza", from: 10, to: 16 },
@@ -250,19 +253,24 @@ export const RESIDENTS = [
 const PROFILE = {
   ophelia: { job: "Librarian", work: { place: "library", from: 9, to: 16, wage: 12 }, traits: { diligence: 0.8, rebel: 0.2, ambition: 0.4, generosity: 0.7 }, community: "lantern" },
   orion: { job: "Inventor", work: { place: "workshop", from: 11, to: 19, wage: 11 }, traits: { diligence: 0.6, rebel: 0.6, ambition: 0.5, generosity: 0.6 }, community: "tinkerers" },
-  sonny: { job: "Café owner", work: { place: "cafe", from: 7, to: 15, wage: 14 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.8 }, community: "hearth" },
+  sonny: { job: "Innkeeper", work: { place: "cafe", from: 7, to: 15, wage: 14 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.8 }, community: "hearth" },
   sage: { job: "Painter", work: { place: "park", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.4, rebel: 0.7, ambition: 0.2, generosity: 0.6 }, community: "spirits" },
   selene: { job: "Town clerk", work: { place: "townhall", from: 9, to: 17, wage: 13 }, traits: { diligence: 0.9, rebel: 0.1, ambition: 0.95, generosity: 0.6 }, community: "lantern" },
   hana: { job: "Gardener", work: { place: "garden", from: 6, to: 13, wage: 10 }, traits: { diligence: 0.9, rebel: 0.3, ambition: 0.2, generosity: 0.7 }, community: "hearth" },
   hugo: { job: "Mail carrier", work: { place: "townhall", from: 6, to: 12, wage: 11 }, traits: { diligence: 0.8, rebel: 0.4, ambition: 0.3, generosity: 0.5 }, community: "tinkerers" },
   hazel: { job: "Cartographer's apprentice", work: { place: "library", from: 10, to: 15, wage: 8 }, traits: { diligence: 0.7, rebel: 0.3, ambition: 0.4, generosity: 0.6 }, community: "tinkerers" },
   nova: { job: "Photographer", work: { place: "plaza", from: 10, to: 16, wage: 10 }, traits: { diligence: 0.6, rebel: 0.5, ambition: 0.7, generosity: 0.4 }, community: "spirits" },
-  gus: { job: "Baker", work: { place: "cafe", from: 5, to: 10, wage: 13 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.7 }, community: "hearth" },
+  gus: { job: "Baker & shopkeeper", work: { place: "store", from: 5, to: 12, wage: 13 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.7 }, community: "hearth" },
   dex: { job: "Math tutor", work: { place: "library", from: 13, to: 18, wage: 12 }, traits: { diligence: 0.7, rebel: 0.4, ambition: 0.6, generosity: 0.3 }, community: "lantern" },
-  lola: { job: "Yarn seller", work: { place: "plaza", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.5, rebel: 0.6, ambition: 0.4, generosity: 0.9 }, community: "spirits" },
-  mira: { job: "Chef", work: { place: "cafe", from: 11, to: 17, wage: 13 }, traits: { diligence: 0.8, rebel: 0.5, ambition: 0.6, generosity: 0.5 }, community: "hearth" },
+  lola: { job: "Yarn seller", work: { place: "market", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.5, rebel: 0.6, ambition: 0.4, generosity: 0.9 }, community: "spirits" },
+  mira: { job: "Inn chef", work: { place: "cafe", from: 11, to: 17, wage: 13 }, traits: { diligence: 0.8, rebel: 0.5, ambition: 0.6, generosity: 0.5 }, community: "hearth" },
 };
-for (const r of RESIDENTS) Object.assign(r, PROFILE[r.id]);
+for (const r of RESIDENTS) {
+  Object.assign(r, PROFILE[r.id]);
+  r.weights.market ??= 1.5; // everyone shops at the market now and then
+  r.weights.store ??= 1;
+  r.weights.clinic ??= 0.4;
+}
 
 export const COMMUNITIES = {
   lantern: { name: "Lantern Society", color: "#fbbf24", icon: "🏮", hangout: "townhall", values: "order, tradition and safe streets", strict: 0.9 },
