@@ -42,7 +42,8 @@
     </header>
 
     <nav id="tabs">
-      <button data-tab="town" class="on">🏘️ Town</button>
+      <button data-tab="live" class="on">🔴 Live</button>
+      <button data-tab="town">🏘️ Town</button>
       <button data-tab="chats">💬 Chats</button>
       <button data-tab="laws">⚖️ Laws</button>
       <button data-tab="politics">🗳️ Politics</button>
@@ -50,7 +51,19 @@
     </nav>
 
     <div id="panes">
-      <section class="pane on" data-pane="town">
+      <section class="pane on" data-pane="live">
+        <div id="liveStats" class="live-stats"></div>
+        <h2>Happening now</h2>
+        <div id="liveNow"></div>
+        <h2>Everyone right now</h2>
+        <div id="liveList"></div>
+      </section>
+
+      <section class="pane" data-pane="town">
+        <h2>Population</h2>
+        <div id="popStats" class="live-stats"></div>
+        <h2>Jobs</h2>
+        <div id="jobBoard"></div>
         <h2>Residents</h2>
         <div id="residents"></div>
         <h2>Communities</h2>

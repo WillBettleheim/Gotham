@@ -2,6 +2,7 @@
 import { MODELS, COMMUNITIES, LAW_TYPES, residentById } from "./residents.js";
 import { drawPortrait } from "./sprites.js";
 import { penaltyText } from "./society.js";
+import { WORKPLACES, placeLabel } from "./population.js";
 
 const $ = (id) => document.getElementById(id);
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -11,7 +12,7 @@ const hhmm = (min) => `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}
 
 export function createUI() {
   let sim = null, society = null;
-  let selected = null, follow = false, tab = "town", gazetteFilter = "all";
+  let selected = null, follow = false, tab = "live", gazetteFilter = "all";
   let calls = 0;
   const feed = $("feed");
 
@@ -64,6 +65,13 @@ export function createUI() {
       renderCard();
     },
     renderLegend,
+    addResident(a) { if (!sim) return; addRow(a, true); renderCommunities(true); }, // before attach(), buildResidents adds everyone
+    removeResident(a) {
+      if (!sim) return;
+      resEls[a.id]?.b.remove(); delete resEls[a.id];
+      if (selected === a) ui.select(null);
+      renderCommunities(true);
+    },
   };
 
   // ----- tabs -----
@@ -79,11 +87,12 @@ export function createUI() {
 
   function renderAll() {
     if (!sim) return;
-    renderResidents(); renderCommunities(); renderLaws(); renderProposals(); renderCrimes(); renderPolitics(); renderGazette(); renderNews(); renderTicker();
+    renderResidents(); renderCommunities(); renderPopulation(); renderLive(); renderLaws(); renderProposals(); renderCrimes(); renderPolitics(); renderGazette(); renderNews(); renderTicker();
   }
   function tick() {
     renderTicker();
-    if (tab === "town") { renderResidents(); renderCommunities(); }
+    if (tab === "town") { renderResidents(); renderCommunities(); renderPopulation(); }
+    if (tab === "live") renderLive();
     if (tab === "politics") renderElectionClock();
     if (selected) updateCardLive();
   }
@@ -102,10 +111,11 @@ export function createUI() {
 
   // ----- town tab -----
   const resEls = {};
-  function buildResidents() {
-    for (const a of sim.agents) {
+  function buildResidents() { for (const a of sim.agents) addRow(a); }
+  function addRow(a, isNew = false) {
+    {
       const b = document.createElement("button");
-      b.className = "res"; b.dataset.id = a.id;
+      b.className = "res" + (isNew ? " new" : ""); b.dataset.id = a.id;
       b.append(portrait(a.res, 76));
       const info = document.createElement("div");
       info.innerHTML = `<div class="n"><i style="background:${MODELS[a.res.model].color}"></i>${esc(a.res.name)} <small>${esc(a.res.job)}</small></div><div class="a"></div><div class="mini"></div>`;
@@ -114,7 +124,7 @@ export function createUI() {
       b.append(info, money);
       b.onclick = () => ui.select(a, true);
       $("residents").append(b);
-      resEls[a.id] = { b, act: info.querySelector(".a"), mini: info.querySelector(".mini"), money };
+      resEls[a.id] = { b, act: info.querySelector(".a"), mini: info.querySelector(".mini"), money, job: info.querySelector("small") };
     }
   }
   function statusIcons(a) {
@@ -130,16 +140,18 @@ export function createUI() {
   function renderResidents() {
     for (const a of sim.agents) {
       const e = resEls[a.id];
+      if (!e) continue;
       e.act.textContent = a.activity;
+      e.job.textContent = a.res.job;
       e.mini.innerHTML = bar(a.mood, "#facc15") + bar(a.rep, "#60a5fa") + bar(100 - a.hunger, "#4ade80");
       e.money.innerHTML = `<div class="icons">${statusIcons(a)}</div>🪙 ${Math.floor(a.coins)}`;
       e.mini.title = `mood ${Math.round(a.mood)} · reputation ${Math.round(a.rep)} · fullness ${Math.round(100 - a.hunger)}`;
     }
   }
-  function renderCommunities() {
+  function renderCommunities(force) {
     const box = $("communities");
     const sig = sim.agents.map((a) => a.community).join() + Math.round(sim.time / 30);
-    if (box.dataset.sig === sig) return;
+    if (box.dataset.sig === sig && !force) return;
     box.dataset.sig = sig;
     box.innerHTML = "";
     for (const [id, c] of Object.entries(COMMUNITIES)) {
@@ -154,6 +166,57 @@ export function createUI() {
       box.append(el);
     }
   }
+
+  // ----- population & jobs -----
+  function renderPopulation() {
+    const st = society.population.stats();
+    $("popStats").innerHTML = [["👥", st.population, "residents"], ["💼", st.employed, "employed"], ["🏠", `${st.population}/${st.capacity}`, "housing"], ["🧳", `${st.arrivals}↑ ${st.departures}↓`, "moved"]]
+      .map(([i, v, k]) => `<div><b>${i} ${v}</b><span>${k}</span></div>`).join("");
+    $("jobBoard").innerHTML = Object.entries(WORKPLACES).map(([k, w]) => {
+      const staff = society.population.staff(k);
+      const open = w.slots - staff.length;
+      return `<div class="job"><b>${esc(w.title)} · ${esc(placeLabel(k))}</b>${open > 0 ? `<span class="open">${open} open</span>` : `<span class="full">full</span>`}<small>${w.wage}🪙/h · ${w.from}:00–${w.to}:00 · ${staff.map((a) => esc(a.res.name)).join(", ") || "nobody yet"}</small></div>`;
+    }).join("") + (sim.agents.some((a) => !a.res.work) ? `<div class="job"><b>Unemployed</b><span class="full">${sim.agents.filter((a) => !a.res.work).length}</span><small>${sim.agents.filter((a) => !a.res.work).map((a) => esc(a.res.name)).join(", ")}</small></div>` : "");
+  }
+
+  // ----- live tab: everything happening right now -----
+  const placeName = (a) => a.state === "jailed" ? "Jail" : a.place === "home" ? "home" : placeLabel(a.place);
+  function category(a) {
+    if (a.state === "jailed") return ["⛓️", "In jail"];
+    if (a.escort) return ["🚔", "Being arrested"];
+    if (a.state === "talking") return ["💬", "Talking"];
+    if (a.state === "sleeping") return ["💤", "Sleeping"];
+    if (a.working) return ["🔨", "Working"];
+    if (a.state === "walking") return ["🚶", "On the move"];
+    return ["☕", "Hanging out"];
+  }
+  function renderLive() {
+    const st = society.population.stats();
+    const talking = [...sim.convos];
+    $("liveStats").innerHTML = [["💬", talking.length, "chats"], ["🔨", sim.agents.filter((a) => a.working).length, "working"], ["💤", sim.agents.filter((a) => a.state === "sleeping").length, "asleep"], ["👥", st.population, "residents"]]
+      .map(([i, v, k]) => `<div><b>${i} ${v}</b><span>${k}</span></div>`).join("");
+    const cards = [];
+    for (const c of talking) {
+      const lines = c.history.slice(-3).map((h) => { const sp = sim.agents.find((x) => x.id === h.id); return `<p><b style="color:${MODELS[sp?.res.model]?.color ?? "#fff"}">${esc(h.name ?? sp?.res.name)}:</b> ${esc(h.text)}</p>`; }).join("");
+      const typer = [c.a, c.b].find((x) => x.bubble?.typing);
+      cards.push(`<div class="now-card" data-who="${c.a.id}" style="--c:${MODELS[c.a.res.model].color}"><div class="t">💬 ${esc(c.a.res.name)} & ${esc(c.b.res.name)}<small>${esc(c.place)}</small></div>${lines}${typer ? `<p class="typing">${esc(typer.res.name)} is thinking…</p>` : ""}</div>`);
+    }
+    for (const a of sim.agents.filter((x) => x.escort)) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#f87171"><div class="t">🚔 ${esc(a.res.name)} is being taken to jail</div></div>`);
+    const e = society.election;
+    if (e.phase !== "idle") cards.push(`<div class="now-card" style="--c:#c084fc"><div class="t">🗳️ Election: ${e.phase === "campaign" ? "campaign underway" : e.phase === "rally" ? "rally in the plaza" : "counting votes"}<small>${e.candidates.map((c) => esc(residentById(c.id)?.name)).join(" vs ")}</small></div></div>`);
+    for (const a of sim.agents.filter((x) => x.state === "jailed")) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#9ca3af"><div class="t">⛓️ ${esc(a.res.name)} is serving time<small>${esc(a.activity)}</small></div></div>`);
+    $("liveNow").innerHTML = cards.join("") || `<p class="empty">Quiet moment. Nobody is chatting right now.</p>`;
+    const groups = {};
+    for (const a of sim.agents) { const [icon, label] = category(a); (groups[label] ??= { icon, list: [] }).list.push(a); }
+    const order = ["Being arrested", "Talking", "Working", "On the move", "Hanging out", "In jail", "Sleeping"];
+    $("liveList").innerHTML = order.filter((k) => groups[k]).map((k) => `<div class="group-h">${groups[k].icon} ${k} <i>${groups[k].list.length}</i></div>` +
+      groups[k].list.map((a) => `<div class="lrow" data-who="${a.id}"><span class="dot" style="background:${MODELS[a.res.model].color}"></span><span class="nm">${esc(a.res.name)}</span><span class="ac">${esc(a.activity)} · ${esc(placeName(a))}</span></div>`).join("")).join("");
+  }
+  for (const id of ["liveNow", "liveList"]) $(id).addEventListener("click", (ev) => {
+    const who = ev.target.closest("[data-who]")?.dataset.who;
+    const a = who && sim.agents.find((x) => x.id === who);
+    if (a) ui.select(a, true);
+  });
 
   // ----- chats tab -----
   function renderNews() { $("newsList").innerHTML = sim.news.slice().reverse().map((n) => `<div>📣 ${esc(n)}</div>`).join(""); }
