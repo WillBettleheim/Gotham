@@ -57,23 +57,39 @@ Free model names change often, so every model can be overridden in `.env` (see `
 - **Town news:** post an announcement from the sidebar and residents will bring it up.
 - **Day and night:** street lamps, glowing windows, chimney smoke, ducks on the pond and fireflies at night.
 
+## Society: work, laws, jail, communities and elections
+
+Every resident is free to do what they want, and every choice has consequences.
+
+- **Work and money:** everyone has a job, shift hours and a wage. They only get paid for time actually spent at work. Rent (15/day) and meals (8 at the café) cost money. Run out and you go hungry, fall into debt, and your mood drops.
+- **Free will:** each morning a resident plans their day: work or skip, and which laws they're willing to break. Live residents decide with their own model; offline residents decide from their personality (diligence, rebelliousness, ambition, generosity) and their situation.
+- **Laws (you decide):** in the ⚖️ Laws tab you are the citizens' council. Pass a curfew, quiet hours, mandatory work, a private garden, no stealing, an income tax, or write any custom law. Custom laws are judged by an AI judge reading the residents' conversations (or by banned words when offline). You choose each penalty: a fine or jail time.
+- **Crime and punishment:** lawbreakers get caught more often when others are nearby. Caught residents pay the fine; if they can't, they go to jail. Jail time means an escort to the Jail, no wages, a lost vote, and a hit to reputation and mood. Repeat offenders pay 50% more each time.
+- **Communities:** Lantern Society (order), Hearth & Harvest (food and fairness), Tinkerers' Union (work and progress) and Free Spirits (freedom and art). They meet up in the evenings, vote as blocs, help broke friends, and unhappy members may follow a friend to another community.
+- **Elections:** every two game days, each community nominates a candidate. There's a campaign, a rally in the plaza with speeches, then everyone votes (live residents vote with their own model and say why). The mayor earns a salary from the treasury and proposes a law change that you approve or reject.
+- **Gotham Gazette:** every arrest, fine, election and community shake-up is reported. Click an entry or a toast to jump to the resident involved.
+
 ## Controls
 
 - Drag to pan, scroll to zoom
-- Click a resident (on the map or in the sidebar) to see their personality, friends and memories, and to follow them
-- Space pauses; 1× / 2× / 5× changes speed (1 real second = 1 game minute at 1×)
+- Click a resident (on the map or in the sidebar) to see their money, mood, reputation, today's plan, criminal record, friends and memories, and to follow them
+- Space pauses; ½× to 15× changes speed (at 1×, one game minute takes 2 real seconds, so a day lasts about 48 minutes)
+- "Reset town" in the sidebar starts Gotham over
 
 ## How it works
 
 ```
-server.js            Node server: serves the page; /api/talk + /api/reflect call each resident's model
+server.js            Node server: serves the page; /api/talk, /api/reflect and /api/think
+                     (plans, speeches, votes, mayor proposals, judging) call each resident's model
 providers.js         Gemini, GPT, DeepSeek, Llama and Mistral (OpenAI-style chat APIs)
 public/js/residents.js  who lives here (personas, schedules, looks), shared by server and browser
 public/js/map.js     town layout, A* pathfinding, pre-rendered map art
 public/js/sprites.js procedurally drawn characters
-public/js/sim.js     daily routines, movement, conversations, memories
+public/js/sim.js     daily routines, free-will choices, movement, conversations, memories
+public/js/society.js economy, laws, crime, jail, communities, elections, gazette
 public/js/offline.js built-in chatter for offline mode
-public/js/main.js    rendering, lighting, camera and sidebar UI
+public/js/ui.js      sidebar tabs, resident card, laws council, politics, gazette, toasts
+public/js/main.js    rendering, lighting, weather, fireworks and camera
 ```
 
 Calls use low effort and short replies to keep chatter quick and cheap, and at most 2 conversations run at once in live mode. Add residents by appending to `RESIDENTS` in `public/js/residents.js` (all 13 houses are taken, so add a house in `map.js` too). To add a new model, add it to `MODELS` and to `PROVIDERS` in `providers.js`.
