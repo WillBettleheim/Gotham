@@ -97,13 +97,26 @@ You are chatting in person with a neighbor. Reply with ONLY the words you say ou
 }
 
 const clip = (s, n) => String(s ?? "").slice(0, n);
+
+// Original residents are defined in residents.js; newcomers who moved in at runtime send their persona.
+function who(id, persona) {
+  const known = residentById(id);
+  if (known) return known;
+  if (!persona || !MODELS[persona.model] || typeof id !== "string" || !/^n_[\w]{1,40}$/.test(id)) return null;
+  return {
+    id, model: persona.model,
+    name: clip(persona.name, 30), role: clip(persona.role, 200),
+    personality: clip(persona.personality, 200), style: clip(persona.style, 120),
+  };
+}
+const nameOf = (h) => residentById(h.id)?.name ?? (clip(h.name, 30) || "Someone");
 const list = (a, n) => (Array.isArray(a) ? a.slice(-n) : []);
 
 function talkPrompt(sp, li, b) {
   const memories = list(b.memories, 6).map((m) => `- ${clip(m, 200)}`).join("\n") || "- (nothing yet, you barely know them)";
   const news = list(b.news, 3).map((n) => `- ${clip(n, 200)}`).join("\n") || "- (no news today)";
   const history = list(b.history, 12)
-    .map((h) => `${residentById(h.id)?.name ?? "Someone"}: ${clip(h.text, 300)}`)
+    .map((h) => `${nameOf(h)}: ${clip(h.text, 300)}`)
     .join("\n");
   const turnsLeft = Math.max(0, Number(b.maxTurns) - Number(b.turn));
   return `It's ${clip(b.time, 40)}. You're at ${clip(b.place, 60)}, ${clip(b.activity, 80)}.
@@ -124,7 +137,7 @@ ${history ? `Conversation so far:\n${history}\n\nNow it's your turn to reply to 
 
 function reflectPrompt(r, other, b) {
   const history = list(b.history, 12)
-    .map((h) => `${residentById(h.id)?.name ?? "Someone"}: ${clip(h.text, 300)}`)
+    .map((h) => `${nameOf(h)}: ${clip(h.text, 300)}`)
     .join("\n");
   return `You just finished this conversation with ${other.name} at ${clip(b.place, 60)}:
 
@@ -189,7 +202,7 @@ Reply with JSON only:
 
 function judgePrompt(b) {
   const laws = list(b.laws, 10).map((l) => `- id "${clip(l.id, 20)}": ${clip(l.text, 200)}`).join("\n");
-  const history = list(b.history, 12).map((h) => `[${clip(h.id, 20)}] ${residentById(h.id)?.name ?? "Someone"}: ${clip(h.text, 300)}`).join("\n");
+  const history = list(b.history, 12).map((h) => `[${clip(h.id, 20)}] ${nameOf(h)}: ${clip(h.text, 300)}`).join("\n");
   return `Custom laws of Gotham:
 ${laws}
 
@@ -231,7 +244,7 @@ const server = http.createServer(async (req, res) => {
         const out = parseJson(await ask(judge, sys, judgePrompt(b), 2000));
         return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
       }
-      const r = residentById(b.agentId);
+      const r = who(b.agentId, b.persona);
       if (!r || !["plan", "speech", "vote", "propose"].includes(b.kind)) return send(res, 400, { error: "bad request" });
       if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
       const raw = await ask(r.model, personaPrompt(r), thinkPrompt(b.kind, r, b), 2000);
@@ -242,7 +255,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && (url.pathname === "/api/talk" || url.pathname === "/api/reflect")) {
       const b = await readJson(req);
       if (url.pathname === "/api/talk") {
-        const sp = residentById(b.speakerId), li = residentById(b.listenerId);
+        const sp = who(b.speakerId, b.persona), li = who(b.listenerId, b.listenerPersona);
         if (!sp || !li) return send(res, 400, { error: "unknown resident" });
         if (!LIVE_MODELS[sp.model]) return send(res, 503, { error: "offline" });
         const raw = await ask(sp.model, personaPrompt(sp), talkPrompt(sp, li, b), 2000);
@@ -250,12 +263,12 @@ const server = http.createServer(async (req, res) => {
         const end = /<bye>/i.test(raw);
         const text = raw
           .replace(/<bye>/gi, "")
-          .replace(new RegExp(`^\\s*${sp.name}\\s*:\\s*`, "i"), "")
+          .replace(new RegExp(`^\\s*${sp.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:\\s*`, "i"), "")
           .replace(/^["“]|["”]$/g, "")
           .trim();
         return send(res, 200, { text, end, model: sp.model });
       } else {
-        const r = residentById(b.agentId), other = residentById(b.otherId);
+        const r = who(b.agentId, b.persona), other = who(b.otherId, b.otherPersona);
         if (!r || !other) return send(res, 400, { error: "unknown resident" });
         if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
         const memory = await ask(r.model, personaPrompt(r), reflectPrompt(r, other, b), 1500);
