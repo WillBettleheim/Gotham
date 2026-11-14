@@ -1,9 +1,9 @@
 // Town layout (tile grid) + pre-rendered static layers.
 export const T = 32;
-export const W = 56;
+export const W = 66;
 export const H = 38;
-export const TILE = { GRASS: 0, PATH: 1, WATER: 2, BUILDING: 3, TREE: 4, PLAZA: 5, FIELD: 6, FENCE: 7, FOUNTAIN: 8 };
-const { GRASS, PATH, WATER, BUILDING, TREE, PLAZA, FIELD, FENCE, FOUNTAIN } = TILE;
+export const TILE = { GRASS: 0, PATH: 1, WATER: 2, BUILDING: 3, TREE: 4, PLAZA: 5, FIELD: 6, FENCE: 7, FOUNTAIN: 8, YARD: 9 };
+const { GRASS, PATH, WATER, BUILDING, TREE, PLAZA, FIELD, FENCE, FOUNTAIN, YARD } = TILE;
 const WALKABLE = new Set([GRASS, PATH, PLAZA, FIELD]);
 
 export function mulberry32(a) {
@@ -24,10 +24,10 @@ export function buildTown() {
   const rect = (x, y, w, h, t) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) set(i, j, t); };
 
   // Roads
-  rect(1, 19, 54, 2, PATH);   // main street
+  rect(1, 19, W - 2, 2, PATH); // main street
   rect(27, 8, 2, 28, PATH);   // north-south avenue
-  rect(3, 9, 50, 1, PATH);    // north lane
-  rect(3, 29, 50, 1, PATH);   // south road
+  rect(3, 9, W - 4, 1, PATH);  // north lane
+  rect(3, 29, W - 4, 1, PATH); // south road
   rect(3, 35, 25, 1, PATH);   // south cottage lane
   rect(21, 14, 14, 12, PLAZA);
   rect(26, 18, 4, 4, FOUNTAIN);
@@ -48,6 +48,10 @@ export function buildTown() {
   rect(32, 30, 20, 7, FENCE);
   rect(33, 31, 18, 5, FIELD);
   set(42, 30, PATH); set(43, 30, PATH);
+
+  // Jail yard (fenced, no gate: prisoners are escorted in)
+  rect(55, 31, 9, 6, FENCE);
+  rect(56, 32, 7, 4, YARD);
 
   // Buildings (door is the walkable tile just below the building)
   const buildings = [];
@@ -74,6 +78,8 @@ export function buildTown() {
     library: { x: 5, y: 12, w: 10, h: 5, door: { x: 9, y: 17 }, kind: "library", roof: "#5a4a8a", wall: "#eadcc4", label: "Library" },
     cafe: { x: 39, y: 12, w: 9, h: 5, door: { x: 43, y: 17 }, kind: "cafe", roof: "#c4683c", wall: "#f6e6cc", label: "The Warm Byte Café" },
     workshop: { x: 39, y: 22, w: 8, h: 5, door: { x: 42, y: 27 }, kind: "workshop", roof: "#5c6670", wall: "#d9cbb4", label: "Orion's Workshop" },
+    courthouse: { x: 56, y: 11, w: 7, h: 5, door: { x: 59, y: 16 }, kind: "courthouse", roof: "#8a7f72", wall: "#f2efe8", label: "Courthouse" },
+    jail: { x: 56, y: 22, w: 7, h: 5, door: { x: 59, y: 27 }, kind: "jail", roof: "#4b4f58", wall: "#a9a39a", label: "Jail" },
   };
   Object.values(special).forEach(add);
 
@@ -128,6 +134,8 @@ export function buildTown() {
     workshop: tilesWhere(38, 27, 47, 28),
     garden: tilesWhere(33, 31, 50, 35, (t) => t === FIELD),
     townhall: tilesWhere(22, 8, 33, 8),
+    courthouse: tilesWhere(54, 17, 64, 18),
+    jailyard: tilesWhere(56, 32, 62, 35, (t) => t === YARD),
   };
 
   const town = { grid, get, buildings, houses, special, decor, lamps, pond, places, windows: [], chimneys: [] };
@@ -231,6 +239,10 @@ export function renderStatic(town) {
       if (edge(0, 1)) g.fillRect(px, py + T - 5, T, 5);
       if (edge(-1, 0)) g.fillRect(px, py, 5, T);
       if (edge(1, 0)) g.fillRect(px + T - 5, py, 5, T);
+    } else if (t === YARD) {
+      g.fillStyle = (x + y) % 2 ? "#b9b2a6" : "#b3ab9e"; g.fillRect(px, py, T, T);
+      g.fillStyle = "rgba(80,70,60,0.25)";
+      for (let i = 0; i < 6; i++) g.fillRect(px + rnd() * (T - 2), py + rnd() * (T - 2), 2, 2);
     } else if (t === FIELD) {
       g.fillStyle = "#8a5a36"; g.fillRect(px, py, T, T);
       g.fillStyle = "#74492a";
@@ -331,7 +343,7 @@ function drawBuilding(g, b, town) {
     g.fillStyle = "#a7d8f2"; g.fillRect(wx, wyy, ww, wh);
     g.fillStyle = "rgba(255,255,255,0.55)"; g.fillRect(wx + 2, wyy + 2, 4, wh - 4);
     g.fillStyle = "#4a3a2c"; g.fillRect(wx + ww / 2 - 1, wyy, 2, wh); g.fillRect(wx, wyy + wh / 2 - 1, ww, 2);
-    if (b.kind !== "workshop") { g.fillStyle = "#e86a8a"; g.fillRect(wx - 1, wyy + wh + 2, ww + 2, 3); g.fillStyle = "#5fae3f"; g.fillRect(wx, wyy + wh + 1, ww, 1); }
+    if (b.kind !== "workshop" && b.kind !== "jail") { g.fillStyle = "#e86a8a"; g.fillRect(wx - 1, wyy + wh + 2, ww + 2, 3); g.fillStyle = "#5fae3f"; g.fillRect(wx, wyy + wh + 1, ww, 1); }
     town.windows.push({ x: wx + ww / 2, y: wyy + wh / 2, w: ww, h: wh });
   }
   // roof
@@ -356,6 +368,17 @@ function drawBuilding(g, b, town) {
     g.fillStyle = "#5d6e82"; g.beginPath(); g.moveTo(cx - 18, y - 20); g.lineTo(cx, y - 38); g.lineTo(cx + 18, y - 20); g.fill();
     g.fillStyle = "#fff"; g.beginPath(); g.arc(cx, y - 10, 8, 0, Math.PI * 2); g.fill();
     g.strokeStyle = "#333"; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, y - 10, 8, 0, Math.PI * 2); g.moveTo(cx, y - 10); g.lineTo(cx, y - 16); g.moveTo(cx, y - 10); g.lineTo(cx + 4, y - 9); g.stroke();
+  }
+  if (b.kind === "courthouse") {
+    g.fillStyle = "#e4dfd4"; for (let k = x + 8; k < x + w - 4; k += 26) { g.fillRect(k, wy + 2, 8, wallH - 7); g.fillStyle = "#cfc8ba"; g.fillRect(k, wy + 2, 8, 3); g.fillStyle = "#e4dfd4"; }
+    g.fillStyle = "#8a7f72"; g.beginPath(); g.moveTo(x - 6, y + 4); g.lineTo(x + w / 2, y - 22); g.lineTo(x + w + 6, y + 4); g.fill();
+    g.fillStyle = "#f6d365"; g.font = "16px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("⚖", x + w / 2, y - 6);
+  }
+  if (b.kind === "jail") {
+    for (const win of town.windows.filter((wi) => wi.x > x && wi.x < x + w && wi.y > wy && wi.y < y + h)) {
+      g.fillStyle = "#2b2b30"; for (let k = -6; k <= 6; k += 4) g.fillRect(win.x + k, win.y - win.h / 2, 2, win.h);
+    }
+    g.fillStyle = "rgba(0,0,0,0.12)"; for (let k = x; k < x + w; k += 12) for (let r = wy; r < y + h - 5; r += 8) g.fillRect(k + ((r / 8) % 2) * 6, r, 11, 1);
   }
   if (b.kind === "cafe") {
     // striped awning
