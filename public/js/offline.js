@@ -15,7 +15,7 @@ const answers = [
   "Honestly? Mostly just enjoying the quiet.", "Funny you ask, I was just thinking about that.",
   "A little bit of everything, as usual.", "Oh, nothing special, but that's the nice part.",
 ];
-const goodbyes = ["Anyway, I should get going. See you around, {L}!", "Good talking, {L}. Catch you later!", "I'll let you get on with your day. Bye, {L}!", "See you at the café sometime, {L}."];
+const goodbyes = ["Anyway, I should get going. See you around, {L}!", "Good talking, {L}. Catch you later!", "I'll let you get on with your day. Bye, {L}!", "See you at the Inn sometime, {L}."];
 const newsTake = ["Did you hear? {N}", "Everyone's talking about it: {N}", "Have you heard the news? {N}"];
 
 export function offlineLine(speaker, listener, ctx) {

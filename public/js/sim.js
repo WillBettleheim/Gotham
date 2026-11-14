@@ -151,7 +151,7 @@ export class Sim {
     const hangout = COMMUNITIES[a.community]?.hangout;
     if (a.gatherUntil > this.time && hangout && a.place !== hangout) return this.goTo(a, hangout, `meeting the ${COMMUNITIES[a.community].name}`);
     if (a.candidate && s.election.phase === "rally" && a.place !== "plaza") return this.goTo(a, "plaza", "heading to the campaign rally");
-    if (a.hunger > 55 && a.place !== "cafe") return this.goTo(a, "cafe", a.coins >= 8 ? "going to get food" : "hungry, heading to the café");
+    if (a.hunger > 55 && a.place !== "cafe") return this.goTo(a, "cafe", a.coins >= 8 ? "going to get food" : "hungry, heading to the Inn");
     const onShift = r.work && inRange(h, r.work.from, r.work.to);
     if (onShift && a.plan?.work !== false && (a.place !== r.work.place || Math.random() < 0.85)) return this.goTo(a, r.work.place, `going to work (${r.job})`);
     const entries = Object.entries(r.weights)
