@@ -1,6 +1,7 @@
 // Gotham's society: money and jobs, needs, laws and crime, jail, communities and elections.
 import { COMMUNITIES, LAW_TYPES, MODELS, residentById } from "./residents.js";
 import { TILE, T } from "./map.js";
+import { Population, WORKPLACES } from "./population.js";
 
 export const FOOD_PRICE = 8;
 const RENT = 15;
@@ -11,10 +12,11 @@ const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 export const inRange = (h, a, b) => (a < b ? h >= a && h < b : h >= a || h < b);
 const hhmm = (min) => `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(Math.floor(min % 60)).padStart(2, "0")}`;
 
+let personaFor = () => undefined;
 async function think(kind, agentId, body) {
   const res = await fetch("/api/think", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind, agentId, ...body }),
+    body: JSON.stringify({ kind, agentId, persona: personaFor(agentId), ...body }),
   });
   if (!res.ok) throw new Error(`think ${kind}: ${res.status}`);
   return res.json();
@@ -32,6 +34,8 @@ export class Society {
     this.nextId = 1;
     this.lastHour = null;
     this.listeners = [];
+    this.population = new Population(this);
+    personaFor = (id) => { const a = sim.agents.find((x) => x.id === id); return a ? sim.personaOf(a) : undefined; };
     this.addLaw({ type: "theft" }, "founding charter", true);
     this.addLaw({ type: "tax", param: 10 }, "founding charter", true);
   }
@@ -148,7 +152,9 @@ export class Society {
       const w = a.res.work;
       if (w && h === w.to % 24) {
         const required = (a.shiftAvail ?? 0) * 0.4;
-        if (a.state !== "jailed" && required > 30 && a.workedToday < required && this.law("work")) this.violate(a, this.law("work"), "skipped work");
+        const skipped = a.state !== "jailed" && required > 30 && a.workedToday < required;
+        if (skipped && this.law("work")) this.violate(a, this.law("work"), "skipped work");
+        this.population.onShiftEnd(a, skipped);
         if (required > 30 && a.workedToday >= required) a.rep = clamp(a.rep + 1);
         a.shiftAvail = 0;
         a.lastShift = { worked: Math.round(a.workedToday), earned: Math.round(a.earnedToday) };
@@ -159,6 +165,7 @@ export class Society {
       // community evening meet-ups
       for (const a of sim.agents) if (a.state !== "jailed" && a.state !== "sleeping" && !a.working && Math.random() < 0.7) a.gatherUntil = sim.time + rand(60, 120);
     }
+    this.population.onHour(h);
     if (h === 0) this.newDay();
   }
 
@@ -188,7 +195,9 @@ export class Society {
         this.log("🔀", `${a.res.name} left the ${from} and joined ${best[0].res.name} in the ${COMMUNITIES[a.community].name}.`, "community");
       }
     }
-    this.log("🌅", `A new day in Gotham. Treasury: ${Math.round(this.treasury)} coins.`, "economy");
+    this.population.onNewDay();
+    const st = this.population.stats();
+    this.log("🌅", `A new day in Gotham. Population ${st.population}, ${st.unemployed} unemployed, ${st.openJobs} open jobs. Treasury: ${Math.round(this.treasury)} coins.`, "economy");
     sim.save();
   }
 
@@ -230,7 +239,7 @@ export class Society {
   onArrive(a) {
     if ((a.place === "cafe" || a.place === "store") && a.hunger > 45) this.eat(a);
     if (a.candidate && this.election.phase === "rally" && a.place === "plaza" && a.speech) {
-      a.bubble = { text: a.speech, until: this.sim.realTime + 14 };
+      a.bubble = { text: a.speech, until: this.sim.realTime + 14, born: this.sim.realTime, speech: true };
       this.log("📣", `${a.res.name} gave a campaign speech: "${a.speech}"`, "election", true, a.id);
     }
   }
@@ -265,7 +274,9 @@ export class Society {
   violate(a, law, what, extraWitnesses = 0) {
     if (!law?.penalty) return;
     const sim = this.sim;
-    const witnesses = sim.agents.filter((o) => o !== a && o.visible && o.state !== "jailed" && Math.hypot(o.x - a.x, o.y - a.y) < 6).length + extraWitnesses;
+    let witnesses = sim.agents.filter((o) => o !== a && o.visible && o.state !== "jailed" && Math.hypot(o.x - a.x, o.y - a.y) < 6).length + extraWitnesses;
+    const officer = sim.agents.find((o) => o !== a && o.res.work?.place === "police" && o.visible && o.state !== "jailed" && Math.hypot(o.x - a.x, o.y - a.y) < 9);
+    if (officer) witnesses += 3;
     const p = law.type === "custom" ? 0.85 : Math.min(0.95, 0.3 + 0.18 * witnesses);
     if (Math.random() > p) {
       a.record.gotAway++;
@@ -283,6 +294,8 @@ export class Society {
     a.record.offenses[law.type] = repeat + 1;
     const mult = 1 + repeat * 0.5;
     const name = a.res.name;
+    const cop = this.sim.agents.find((o) => o !== a && o.res.work?.place === "police" && o.state !== "jailed" && o.state !== "sleeping");
+    if (cop) cop.rep = clamp(cop.rep + 1);
     if (law.penalty.kind === "fine") {
       const amount = Math.round(law.penalty.amount * mult);
       a.record.fines++;
@@ -561,7 +574,7 @@ export class Society {
     return [
       `Coins: ${Math.floor(a.coins)}${a.debt ? ` (in debt: ${Math.ceil(a.debt)})` : ""}. Rent is ${RENT}/day, a meal costs ${FOOD_PRICE}.`,
       `Hunger: ${word(a.hunger, "fed", "a bit hungry", "very hungry")}. Mood: ${word(a.mood, "low", "okay", "great")}. Reputation: ${Math.round(a.rep)}/100.`,
-      w ? `Job: ${a.res.job} at ${w.place}, ${w.from}:00-${w.to}:00, ${w.wage} coins/hour before tax. No work, no pay.` : "",
+      w ? `Job: ${a.res.job} at ${w.place}, ${w.from}:00-${w.to}:00, ${w.wage} coins/hour before tax. No work, no pay; skip three shifts and you're fired.` : `You are unemployed. Open jobs in town: ${this.population.openJobs().map((j) => j.title).join(", ") || "none"}.`,
       `Community: ${c.name} (values: ${c.values}).`,
       `Mayor: ${mayor ? (mayor === a ? "you!" : `${mayor.res.name} (${COMMUNITIES[mayor.community].name})`) : "nobody yet"}. Town treasury: ${Math.round(this.treasury)} coins.`,
       `Town laws (set by the citizens' council; broken laws are punished with fines or jail if you're caught):\n${laws}`,
@@ -578,12 +591,14 @@ export class Society {
       mayor: this.mayor, nextId: this.nextId,
       election: { nextAt: this.election.nextAt, history: this.election.history.slice(0, 10) },
       agents: Object.fromEntries(this.sim.agents.map((a) => [a.id, { coins: a.coins, debt: a.debt, hunger: a.hunger, mood: a.mood, rep: a.rep, record: a.record, community: a.community }])),
+      population: this.population.serialize(),
     };
   }
   restore(s) {
     if (!s) return;
     Object.assign(this, { treasury: s.treasury ?? this.treasury, laws: s.laws ?? this.laws, proposals: s.proposals ?? [], gazette: s.gazette ?? [], mayor: s.mayor ?? null, nextId: s.nextId ?? this.nextId });
     // law text functions aren't serialized, but the text is, so laws restore as-is
+    this.population.restore(s.population);
     if (s.election) { this.election.nextAt = s.election.nextAt ?? this.election.nextAt; this.election.history = s.election.history ?? []; }
     for (const a of this.sim.agents) if (s.agents?.[a.id]) Object.assign(a, s.agents[a.id]);
   }
