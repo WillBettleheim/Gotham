@@ -31,11 +31,38 @@ export function offlineLine(speaker, listener, ctx) {
   let parts = [];
   if (last.endsWith("?")) parts.push(pick(Math.random() < 0.6 ? speaker.topics : answers));
   else parts.push(pick(reactions));
-  if (ctx.news?.length && Math.random() < 0.25) parts = [fill(pick(newsTake))];
+  const civic = ctx.society && ctx.self ? civicLine(ctx.society, ctx.self, listener) : null;
+  if (civic && Math.random() < 0.45) parts = [pick(reactions), civic];
+  else if (ctx.news?.length && Math.random() < 0.25) parts = [fill(pick(newsTake))];
   else if (Math.random() < 0.5) parts.push(Math.random() < 0.5 ? pick(speaker.topics) : pick(speaker.questions));
   const text = [...new Set(parts)].join(" ");
   return { text, end: false };
 }
+
+// Small talk about life in Gotham: money, laws, jail, politics.
+function civicLine(s, me, other) {
+  const opts = [];
+  const rebel = me.res.traits.rebel > 0.5;
+  const mayor = s.mayorAgent();
+  if (me.coins < 15) opts.push(`Money's tight. I'm down to ${Math.floor(me.coins)} coins.`, "If I don't get paid soon, I'm skipping meals.");
+  if (me.coins > 150) opts.push("Work's been good to me lately. Business is booming.");
+  if (me.debt > 0) opts.push("I still owe rent. It's keeping me up at night.");
+  if (me.record.jailed > 0) opts.push(rebel ? "Jail wasn't so bad. The food's free, at least." : "I never want to see the inside of that jail again.");
+  if (me.record.fines > 0) opts.push("I got fined the other day. Lesson learned. Maybe.");
+  if (s.law("curfew")) opts.push(rebel ? "This curfew is ridiculous. The night is the best part!" : "Honestly, the curfew makes me feel safer.");
+  if (s.law("work")) opts.push(rebel ? "Forced to work? That's not how freedom works." : "Mandatory shifts keep the town running, I think.");
+  if (s.law("tax") && s.law("tax").param >= 15) opts.push(`A ${s.law("tax").param}% tax? My wallet is crying.`);
+  if (s.law("garden")) opts.push("Can't even walk through the garden now. Rules, rules.");
+  if (mayor && mayor !== me) opts.push(mayor.community === me.community ? `Mayor ${mayor.res.name} is doing a great job.` : `Mayor ${mayor.res.name}? Not my pick, but we'll see.`);
+  if (mayor === me) opts.push("Being mayor is harder than it looks, you know.");
+  if (s.election.phase !== "idle" && s.election.candidates.length) {
+    const fav = s.election.candidates.find((c) => c.community === me.community) ?? s.election.candidates[0];
+    opts.push(fav.id === me.id ? "Will you vote for me? I'd make a good mayor." : `I'm voting for ${residentName(s, fav.id)}. Who's your pick, ${other.name}?`);
+  }
+  if (me.plan && !me.plan.work && me.res.work) opts.push("I skipped work today. Felt like it.");
+  return opts.length ? pick(opts) : null;
+}
+const residentName = (s, id) => s.sim.agents.find((a) => a.id === id)?.res.name ?? "someone";
 
 export function offlineMemory(agent, other, history, place) {
   const theirs = history.filter((h) => h.id === other.id).map((h) => h.text);
