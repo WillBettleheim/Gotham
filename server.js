@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
 import { RESIDENTS, MODELS, TOWN_NAME, residentById } from "./public/js/residents.js";
+import { resolveProvider, chatCompletion } from "./providers.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(here, "public");
@@ -18,10 +19,16 @@ try {
 } catch {}
 
 const PORT = Number(process.env.PORT) || 3000;
-const LIVE =
-  process.env.AI_TOWN_OFFLINE !== "1" &&
-  Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-const client = LIVE ? new Anthropic() : null;
+const OFFLINE = process.env.AI_TOWN_OFFLINE === "1";
+const CLAUDE_LIVE = !OFFLINE && Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+const client = CLAUDE_LIVE ? new Anthropic() : null;
+const isClaude = (model) => model.startsWith("claude-");
+
+// Which residents' models can actually be reached right now.
+const LIVE_MODELS = Object.fromEntries(
+  Object.keys(MODELS).map((m) => [m, !OFFLINE && (isClaude(m) ? CLAUDE_LIVE : Boolean(resolveProvider(m)))])
+);
+const LIVE = Object.values(LIVE_MODELS).some(Boolean);
 
 // Opus 5.5 and Sonnet 5.5 support server-side refusal fallbacks.
 const SERVER_FALLBACK = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
@@ -44,6 +51,14 @@ async function withSlot(fn) {
 }
 
 async function ask(model, system, user, maxTokens = 2000) {
+  if (!isClaude(model)) {
+    const { text, usage } = await withSlot(() => chatCompletion(resolveProvider(model), system, user, 1024));
+    stats.calls++;
+    stats.inputTokens += usage.input;
+    stats.outputTokens += usage.output;
+    stats.byModel[model] = (stats.byModel[model] ?? 0) + 1;
+    return text;
+  }
   const params = {
     model,
     max_tokens: maxTokens,
@@ -67,7 +82,8 @@ async function ask(model, system, user, maxTokens = 2000) {
 
 function personaPrompt(r) {
   return `You are ${r.name}, a resident of ${TOWN_NAME}, a small, cozy 2D town where AI characters live together as neighbors.
-You run on ${MODELS[r.model].label}. Everyone in town knows which model each neighbor runs on; it's a friendly part of identity, like a hometown, and you can joke about it lightly, but it's not what you talk about most.
+The town is home to AIs from many different labs (Anthropic's Claude, Google's Gemini, OpenAI's GPT, DeepSeek, Meta's Llama, Mistral) and they all get along as neighbors.
+You run on ${MODELS[r.model].label}. Everyone knows which model each neighbor runs on; it's a friendly part of identity, like a hometown, and you can joke about it lightly, but it's not what you talk about most.
 
 Who you are: ${r.role}.
 Personality: ${r.personality}.
@@ -132,14 +148,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (url.pathname === "/api/status") {
-      return send(res, 200, { live: LIVE, town: TOWN_NAME, stats });
+      return send(res, 200, { live: LIVE, liveModels: LIVE_MODELS, town: TOWN_NAME, stats });
     }
     if (req.method === "POST" && (url.pathname === "/api/talk" || url.pathname === "/api/reflect")) {
-      if (!LIVE) return send(res, 503, { error: "offline" });
       const b = await readJson(req);
       if (url.pathname === "/api/talk") {
         const sp = residentById(b.speakerId), li = residentById(b.listenerId);
         if (!sp || !li) return send(res, 400, { error: "unknown resident" });
+        if (!LIVE_MODELS[sp.model]) return send(res, 503, { error: "offline" });
         const raw = await ask(sp.model, personaPrompt(sp), talkPrompt(sp, li, b), 2000);
         if (!raw) return send(res, 200, { text: null });
         const end = /<bye>/i.test(raw);
@@ -152,6 +168,7 @@ const server = http.createServer(async (req, res) => {
       } else {
         const r = residentById(b.agentId), other = residentById(b.otherId);
         if (!r || !other) return send(res, 400, { error: "unknown resident" });
+        if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
         const memory = await ask(r.model, personaPrompt(r), reflectPrompt(r, other, b), 1500);
         return send(res, 200, { memory });
       }
@@ -166,8 +183,8 @@ const server = http.createServer(async (req, res) => {
     fs.createReadStream(file).pipe(res);
   } catch (err) {
     stats.errors++;
-    if (err instanceof Anthropic.APIError) {
-      console.error(`[claude] ${err.status ?? ""} ${err.message}`);
+    if (err instanceof Anthropic.APIError || err.status || err.name === "TimeoutError") {
+      console.error(`[model] ${err.status ?? ""} ${err.message}`);
       return send(res, 502, { error: "model error", status: err.status });
     }
     console.error(err);
@@ -176,10 +193,11 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  🏘️  ${TOWN_NAME} is open at http://localhost:${PORT}`);
-  console.log(
-    LIVE
-      ? "  🤖 Live mode: residents talk through Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5.\n"
-      : "  💤 Offline mode: no ANTHROPIC_API_KEY found, residents use built-in chatter.\n     Add a key to .env and restart to bring them to life.\n"
-  );
+  console.log(`\n  🏘️  ${TOWN_NAME} is open at http://localhost:${PORT}\n`);
+  for (const [m, on] of Object.entries(LIVE_MODELS)) {
+    const who = RESIDENTS.filter((r) => r.model === m).map((r) => r.name).join(", ");
+    console.log(`  ${on ? "🟢 live   " : "⚪ offline"} ${MODELS[m].label.padEnd(18)} ${who}`);
+  }
+  if (!LIVE) console.log("\n  No API keys found, so everyone uses built-in chatter. See .env.example to bring them to life.");
+  console.log("");
 });
