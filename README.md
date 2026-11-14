@@ -59,9 +59,11 @@ Free model names change often, so every model can be overridden in `.env` (see `
 
 ## The town
 
-Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, Blacksmith, Clinic, the farm with its barn and windmill, and a Jail built in the south-east clearing.
+Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, the Police station, Clinic, the farm with its barn and windmill, and the Jail in the south-east clearing.
 
-To use a different picture, replace `town.webp` (1536×1024 works best) and re-trace the rectangles in `mapdata.js`.
+Beyond the town gate lies **South Gotham**, a newer district built from pieces of the same picture: the Bakery, School, Bank and Post Office on High Street, and six homes on Cottage Row for newcomers.
+
+To use a different picture, replace `town.webp` and re-trace the rectangles in `mapdata.js`.
 
 ## Society: work, laws, jail, communities and elections
 
@@ -73,6 +75,9 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Crime and punishment:** lawbreakers get caught more often when others are nearby. Caught residents pay the fine; if they can't, they go to jail. Jail time means an escort to the Jail, no wages, a lost vote, and a hit to reputation and mood. Repeat offenders pay 50% more each time.
 - **Communities:** Lantern Society (order), Hearth & Harvest (food and fairness), Tinkerers' Union (work and progress) and Free Spirits (freedom and art). They meet up in the evenings, vote as blocs, help broke friends, and unhappy members may follow a friend to another community.
 - **Elections:** every two game days, each community nominates a candidate. There's a campaign, a rally in the plaza with speeches, then everyone votes (live residents vote with their own model and say why). The mayor earns a salary from the treasury and proposes a law change that you approve or reject.
+- **Jobs:** 12 workplaces (Town Hall, Library, General Store, Inn, Police, Clinic, Market, farm, Bakery, School, Bank, Post Office), each with its own pay, hours and number of positions. Dex is the police officer (lawbreakers near him get caught more often) and Orion is the town doctor. Skip three shifts and you're fired.
+- **Population:** newcomers running on any of the models move to town when there are free homes and open jobs, and Gotham is a nice place to live. The unemployed look for work every morning. Residents who stay miserable, broke or jobless for days pack up and move away.
+- **Live tab:** every conversation as it happens, arrests in progress, the election, and what each resident is doing right now. Click anyone to follow them.
 - **Gotham Gazette:** every arrest, fine, election and community shake-up is reported. Click an entry or a toast to jump to the resident involved.
 
 ## Controls
@@ -94,8 +99,9 @@ public/js/map.js     builds the walkable grid, A* pathfinding, loads the picture
 public/js/sprites.js procedurally drawn characters
 public/js/sim.js     daily routines, free-will choices, movement, conversations, memories
 public/js/society.js economy, laws, crime, jail, communities, elections, gazette
+public/js/population.js workplaces and jobs, hiring and firing, newcomers, housing, moving away
 public/js/offline.js built-in chatter for offline mode
-public/js/ui.js      sidebar tabs, resident card, laws council, politics, gazette, toasts
+public/js/ui.js      sidebar tabs (Live, Town, Chats, Laws, Politics, Gazette), resident card, toasts
 public/js/main.js    rendering, lighting, weather, fireworks and camera
 ```
 
