@@ -1,7 +1,8 @@
 import { T, W, H, buildTown, renderStatic } from "./map.js";
-import { drawCharacter, drawPortrait, roundRect } from "./sprites.js";
-import { MODELS, PLACES } from "./residents.js";
+import { drawCharacter, roundRect } from "./sprites.js";
+import { MODELS, COMMUNITIES } from "./residents.js";
 import { Sim, fmtTime, periodOf } from "./sim.js";
+import { createUI } from "./ui.js";
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
@@ -12,116 +13,38 @@ const town = buildTown();
 const layers = renderStatic(town);
 const $ = (id) => document.getElementById(id);
 
-// ---------- UI hooks used by the simulation ----------
-const feed = $("feed");
-let calls = 0;
-const ui = {
-  beginConversation(convo, time) {
-    feed.querySelector(".empty")?.remove();
-    const el = document.createElement("div");
-    el.className = "convo live";
-    el.innerHTML = `<div class="h"><span>${convo.a.res.name} & ${convo.b.res.name} · ${convo.place}</span><span>${time}</span></div>`;
-    feed.prepend(el);
-    while (feed.children.length > 40) feed.lastChild.remove();
-    updateLiveCount();
-    return el;
-  },
-  addLine(el, speaker, text) {
-    const p = document.createElement("p");
-    const m = MODELS[speaker.res.model];
-    p.innerHTML = `<b style="color:${m.color}">${speaker.res.name}</b><span class="m" style="color:${m.color}">${m.short}</span> `;
-    p.append(document.createTextNode(text));
-    el.append(p);
-  },
-  endConversation(el) { el.classList.remove("live"); updateLiveCount(); },
-  noteCall() { calls++; $("calls").textContent = `${calls} AI replies`; },
-  noteError(e) { console.warn("AI call failed, using offline line:", e); },
-  refreshCard() { if (selected) renderCard(); },
-};
-const updateLiveCount = () => { const n = sim.convos.size; $("liveCount").textContent = n ? `· ${n} live` : ""; };
-
+const ui = createUI();
 const sim = new Sim(town, ui);
 window.gotham = sim; // handy for poking at the town from the console
+ui.attach(sim);
+ui.renderLegend();
 
-const renderLegend = () => {
-  $("legend").innerHTML = Object.entries(MODELS)
-    .map(([k, m]) => `<span style="--c:${m.color}" class="${sim.liveModels[k] ? "on" : ""}" title="${m.label}: ${sim.liveModels[k] ? "live" : "offline chatter (no API key)"}">${m.short}</span>`)
-    .join("");
-};
 fetch("/api/status").then((r) => r.json()).then((s) => {
   sim.live = s.live;
   sim.liveModels = s.liveModels ?? {};
   const n = Object.values(sim.liveModels).filter(Boolean).length, total = Object.keys(MODELS).length;
   $("mode").textContent = s.live ? `Live · ${n}/${total} models` : "Offline chatter";
   $("mode").className = `badge ${s.live ? "live" : "off"}`;
-  $("mode").title = s.live ? "Residents with a bright dot talk through their real model" : "No API keys on the server; residents use built-in lines";
-  renderLegend();
-}).catch(() => { $("mode").textContent = "Offline chatter"; $("mode").className = "badge off"; });
-renderLegend();
+  $("mode").title = s.live ? "Residents with a bright dot think and talk through their real model" : "No API keys on the server; residents use built-in lines";
+  ui.renderLegend();
+}).catch(() => { $("mode").textContent = "Offline chatter"; $("mode").className = "badge off"; })
+  .finally(() => sim.start());
 
-// ---------- residents list ----------
-const resEls = {};
-for (const a of sim.agents) {
-  const b = document.createElement("button");
-  b.className = "res";
-  const cv = document.createElement("canvas"); cv.width = 60; cv.height = 60;
-  drawPortrait(cv, a.res);
-  const info = document.createElement("div");
-  info.innerHTML = `<div class="n"><i style="background:${MODELS[a.res.model].color}"></i>${a.res.name}</div><div class="a"></div>`;
-  b.append(cv, info);
-  b.onclick = () => select(a, true);
-  $("residents").append(b);
-  resEls[a.id] = b;
-}
-setInterval(() => {
-  for (const a of sim.agents) resEls[a.id].querySelector(".a").textContent = a.activity;
-  if (selected) $("card").querySelector(".now").textContent = `Now: ${selected.activity}`;
-}, 400);
+$("resetBtn").onclick = () => { if (confirm("Start Gotham over? All memories, money, laws and elections will be wiped.")) sim.reset(); };
 
-// ---------- news ----------
-const renderNews = () => { $("newsList").innerHTML = sim.news.slice().reverse().map((n) => `<div>📣 ${escapeHtml(n)}</div>`).join(""); };
-$("newsForm").onsubmit = (e) => {
-  e.preventDefault();
-  const v = $("newsInput").value.trim();
-  if (!v) return;
-  sim.postNews(v);
-  $("newsInput").value = "";
-  renderNews();
-};
-renderNews();
-
-// ---------- selection card ----------
-let selected = null, follow = false;
-function select(a, andFollow = false) {
-  selected = a;
-  follow = andFollow;
-  for (const [id, el] of Object.entries(resEls)) el.classList.toggle("sel", id === a?.id);
-  renderCard();
+// fireworks when a mayor is elected
+const sparks = [];
+sim.society.on((type) => {
+  if (type !== "elected") return;
+  for (let k = 0; k < 6; k++) setTimeout(() => burst(28 * T + (Math.random() - 0.5) * 300, 16 * T - Math.random() * 120), k * 450);
+});
+function burst(x, y) {
+  const hue = Math.floor(Math.random() * 360);
+  for (let i = 0; i < 46; i++) {
+    const a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 90;
+    sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1, hue: hue + Math.random() * 40 });
+  }
 }
-function renderCard() {
-  const card = $("card");
-  if (!selected) { card.hidden = true; return; }
-  const a = selected, m = MODELS[a.res.model];
-  const friends = Object.entries(a.rel).sort((x, y) => y[1] - x[1]).slice(0, 6)
-    .map(([id, n]) => `<span class="friend">${sim.agents.find((o) => o.id === id)?.res.name} · ${n} chat${n > 1 ? "s" : ""}</span>`).join("");
-  const mems = a.memories.slice(-6).reverse().map((x) => `<li>${escapeHtml(x.text)}</li>`).join("");
-  card.innerHTML = `
-    <button class="close" title="Close">✕</button>
-    <div class="top"><canvas width="128" height="128"></canvas>
-      <div><h3>${a.res.name}</h3><span class="badge" style="background:${m.color}22;color:${m.color}">${m.label}</span>
-      <span class="role" style="font-size:11px">${sim.liveModels[a.res.model] ? "● live" : "○ offline chatter"}</span>
-      <p class="role">${a.res.role}</p></div></div>
-    <p class="now">Now: ${escapeHtml(a.activity)}</p>
-    <h4>Personality</h4><p class="role">${a.res.personality}</p>
-    <h4>Friends</h4><div class="friends">${friends || '<span class="role">No chats yet</span>'}</div>
-    <h4>Memories</h4>${mems ? `<ul>${mems}</ul>` : '<p class="role">Nothing yet.</p>'}
-    <div class="row"><button class="follow ${follow ? "on" : ""}">${follow ? "Following" : "Follow"}</button></div>`;
-  drawPortrait(card.querySelector("canvas"), a.res);
-  card.querySelector(".close").onclick = () => select(null);
-  card.querySelector(".follow").onclick = () => { follow = !follow; renderCard(); };
-  card.hidden = false;
-}
-const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 // ---------- controls ----------
 $("pause").onclick = () => { sim.paused = !sim.paused; $("pause").textContent = sim.paused ? "▶" : "⏸"; };
@@ -157,7 +80,7 @@ canvas.addEventListener("pointermove", (e) => {
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-  if (drag.moved > 4) { follow = false; canvas.classList.add("dragging"); cam.x = drag.cx - dx / cam.zoom; cam.y = drag.cy - dy / cam.zoom; clampCam(); }
+  if (drag.moved > 4) { if (ui.follow) { ui.follow = false; ui.refreshCard(); } canvas.classList.add("dragging"); cam.x = drag.cx - dx / cam.zoom; cam.y = drag.cy - dy / cam.zoom; clampCam(); }
 });
 canvas.addEventListener("pointerup", (e) => {
   canvas.classList.remove("dragging");
@@ -170,8 +93,8 @@ canvas.addEventListener("pointerup", (e) => {
       const d = Math.hypot((a.x + 0.5) * T - wx, (a.y + 0.5) * T - wy);
       if (d < bd) { bd = d; best = a; }
     }
-    select(best);
-  } else if (selected) renderCard();
+    ui.select(best);
+  }
   drag = null;
 });
 canvas.addEventListener("wheel", (e) => {
@@ -205,13 +128,21 @@ function sunset(min) {
 
 // ---------- render ----------
 let last = performance.now();
+// The simulation runs on its own timer so the clock stays correct even when drawing is throttled.
+let lastTick = performance.now();
+setInterval(() => {
+  const now = performance.now();
+  sim.update(Math.min(1, (now - lastTick) / 1000));
+  lastTick = now;
+}, 50);
+
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
-  sim.update(dt);
   const t = now / 1000;
 
-  if (follow && selected) {
+  const selected = ui.selected;
+  if (ui.follow && selected) {
     const tx = (selected.x + 0.5) * T - vw / cam.zoom / 2, ty = (selected.y + 0.5) * T - vh / cam.zoom / 2;
     cam.x += (tx - cam.x) * Math.min(1, dt * 4); cam.y += (ty - cam.y) * Math.min(1, dt * 4); clampCam();
   }
@@ -221,6 +152,7 @@ function frame(now) {
   ctx.drawImage(layers.ground, 0, 0);
   drawWaterLife(t);
   drawFountain(t);
+  if (sim.society.election.phase !== "idle") drawBunting(t);
 
   const visible = sim.agents.filter((a) => a.visible).sort((a, b) => a.y - b.y);
   for (const a of visible) {
@@ -232,10 +164,12 @@ function frame(now) {
   }
   ctx.drawImage(layers.canopy, 0, 0);
   drawSmoke(dt, t);
+  drawClouds(t);
 
   const dark = darkness(sim.time);
   drawLighting(dark, sunset(sim.time), t);
   if (dark > 0.3) drawFireflies(t, dark);
+  drawSparks(dt);
 
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -246,6 +180,44 @@ function frame(now) {
   $("clock").textContent = ft.text;
   $("day").textContent = `Day ${ft.day} · ${periodOf(ft.hh)}`;
   requestAnimationFrame(frame);
+}
+
+function drawBunting(t) {
+  const cols = Object.values(COMMUNITIES).map((c) => c.color);
+  for (const [y0, x0, x1] of [[14, 21, 35], [26, 21, 35]]) {
+    const y = y0 * T - 4, sag = 14;
+    ctx.strokeStyle = "rgba(60,40,30,0.7)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = x0 * T; x <= x1 * T; x += 8) { const k = (x - x0 * T) / ((x1 - x0) * T); const yy = y + Math.sin(k * Math.PI) * sag; x === x0 * T ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
+    ctx.stroke();
+    let i = 0;
+    for (let x = x0 * T + 10; x < x1 * T; x += 18, i++) {
+      const k = (x - x0 * T) / ((x1 - x0) * T), yy = y + Math.sin(k * Math.PI) * sag, sway = Math.sin(t * 3 + i) * 1.5;
+      ctx.fillStyle = cols[i % cols.length];
+      ctx.beginPath(); ctx.moveTo(x - 5, yy); ctx.lineTo(x + 5, yy); ctx.lineTo(x + sway, yy + 11); ctx.fill();
+    }
+  }
+}
+
+const clouds = Array.from({ length: 5 }, (_, i) => ({ x: Math.random() * W * T, y: (4 + i * 7) * T, s: 0.7 + Math.random() * 0.8, v: 6 + Math.random() * 6 }));
+function drawClouds(t) {
+  for (const c of clouds) {
+    const x = ((c.x + t * c.v) % (W * T + 400)) - 200;
+    ctx.fillStyle = "rgba(20,30,40,0.07)";
+    for (const [dx, dy, r] of [[0, 0, 60], [55, 10, 45], [-50, 12, 40], [20, -20, 42]]) {
+      ctx.beginPath(); ctx.ellipse(x + dx * c.s, c.y + dy * c.s, r * c.s * 1.4, r * c.s * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawSparks(dt) {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.life -= dt * 0.6; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 40 * dt; p.vx *= 0.99;
+    if (p.life <= 0) { sparks.splice(i, 1); continue; }
+    ctx.fillStyle = `hsla(${p.hue}, 95%, 65%, ${p.life})`;
+    ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
 }
 
 function drawFountain(t) {
@@ -354,7 +326,9 @@ function drawTag(a) {
   const m = MODELS[a.res.model];
   const y = s.y - 30 * cam.zoom - 14;
   ctx.font = "800 11px Nunito, system-ui, sans-serif";
-  const label = a.res.name, w = ctx.measureText(label).width + 20;
+  const soc = sim.society;
+  const icons = (soc.mayor === a.id ? "👑" : "") + (a.candidate ? "📣" : "") + (a.escort ? "🚔" : "") + (a.state === "jailed" ? "⛓️" : "") + (a.working ? "🔨" : "") + (a.hunger > 75 ? "🍞" : "");
+  const label = a.res.name + (icons ? " " + icons : ""), w = ctx.measureText(label).width + 20;
   ctx.fillStyle = "rgba(25,22,32,0.78)";
   roundRect(ctx, s.x - w / 2, y - 8, w, 16, 8); ctx.fill();
   ctx.fillStyle = m.color; ctx.beginPath(); ctx.arc(s.x - w / 2 + 8, y, 3.5, 0, Math.PI * 2); ctx.fill();
