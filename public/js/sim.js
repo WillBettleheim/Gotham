@@ -46,6 +46,7 @@ export class Sim {
     this.speed = 1;
     this.paused = false;
     this.live = false;
+    this.liveModels = {}; // model -> reachable on the server
     this.news = [];
     this.convos = new Set();
     this.pairCooldown = {};
@@ -214,7 +215,7 @@ export class Sim {
       history: convo.history, turn, maxTurns, news: this.news,
       period: periodOf(t.hh),
     };
-    if (this.live) {
+    if (this.liveModels[speaker.res.model]) {
       try {
         const res = await fetch("/api/talk", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -241,7 +242,7 @@ export class Sim {
     const { a, b, history, place } = convo;
     const reflect = async (p, q) => {
       let text = null;
-      if (this.live && history.length) {
+      if (this.liveModels[p.res.model] && history.length) {
         try {
           const res = await fetch("/api/reflect", {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -292,7 +293,7 @@ export class Sim {
 function pickAct(place, a) {
   const acts = PLACES[place]?.acts ?? ["hanging out"];
   if (a.res.work?.place === place) {
-    const work = { cafe: "serving coffee", library: "shelving books", garden: "tending the garden", workshop: "building a contraption", townhall: "working at Town Hall" }[place];
+    const work = { cafe: "serving coffee", library: "shelving books", garden: "tending the garden", workshop: "building a contraption", townhall: "working at Town Hall", plaza: "minding the yarn stall" }[place];
     if (work && Math.random() < 0.6) return (a.activityBefore = work);
   }
   return (a.activityBefore = acts[Math.floor(Math.random() * acts.length)]);
