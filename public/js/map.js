@@ -56,6 +56,7 @@ export function buildTown() {
   const add = (b) => {
     buildings.push(b);
     rect(b.x, b.y, b.w, b.h, BUILDING);
+    if (get(b.door.x, b.door.y) === PATH) return; // door already opens onto a road
     for (let y = b.door.y; y < b.door.y + 6; y++) {
       if (y > b.door.y && (get(b.door.x, y) === PATH || get(b.door.x, y) === PLAZA)) break;
       set(b.door.x, y, PATH);
@@ -64,6 +65,9 @@ export function buildTown() {
   const houses = [];
   [4, 11, 18, 33, 40, 47].forEach((x, i) => houses.push({ x, y: 4, w: 5, h: 4, door: { x: x + 2, y: 8 }, kind: "house", roof: roofs[i], wall: walls[i % 5] }));
   [4, 11, 18].forEach((x, i) => houses.push({ x, y: 31, w: 5, h: 4, door: { x: x + 2, y: 35 }, kind: "house", roof: roofs[6 + i], wall: walls[(i + 2) % 5] }));
+  // newer neighborhood for the residents who moved in later
+  [[16, 12, 5], [49, 12, 5], [48, 22, 5], [23, 31, 4]].forEach(([x, y, w], i) =>
+    houses.push({ x, y, w, h: 4, door: { x: x + 2, y: y + 4 }, kind: "house", roof: ["#3f7fbf", "#2f9e6a", "#c24f8e", "#d4a017"][i], wall: walls[(i + 1) % 5] }));
   houses.forEach(add);
   const special = {
     townhall: { x: 23, y: 2, w: 10, h: 6, door: { x: 27, y: 8 }, kind: "townhall", roof: "#7a8ca0", wall: "#efe9dc", label: "Town Hall" },
