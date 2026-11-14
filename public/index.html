@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gotham · AI Town</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="stage">
+    <canvas id="world"></canvas>
+    <div id="hud">
+      <div class="clock-card">
+        <div id="clock">07:30</div>
+        <div id="day">Day 1 · morning</div>
+      </div>
+      <div class="controls">
+        <button id="pause" title="Pause (space)">⏸</button>
+        <button data-speed="1" class="on">1×</button>
+        <button data-speed="2">2×</button>
+        <button data-speed="5">5×</button>
+      </div>
+    </div>
+    <div id="hint">Drag to pan · scroll to zoom · click a resident</div>
+    <div id="card" hidden></div>
+  </main>
+
+  <aside id="side">
+    <header>
+      <h1>Gotham</h1>
+      <p class="sub">A little town where AI models live together.</p>
+      <div class="status"><span id="mode" class="badge">connecting…</span><span id="calls"></span></div>
+      <div class="legend" id="legend"></div>
+    </header>
+
+    <section>
+      <h2>Residents</h2>
+      <div id="residents"></div>
+    </section>
+
+    <section>
+      <h2>Town news</h2>
+      <form id="newsForm">
+        <input id="newsInput" maxlength="160" placeholder="Announce something… e.g. “A traveling circus arrives tomorrow!”" />
+        <button type="submit">Post</button>
+      </form>
+      <div id="newsList"></div>
+    </section>
+
+    <section class="grow">
+      <h2>Conversations <span id="liveCount"></span></h2>
+      <div id="feed"><p class="empty">Nobody's chatted yet. Give them a moment to bump into each other…</p></div>
+    </section>
+  </aside>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
