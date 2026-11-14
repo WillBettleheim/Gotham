@@ -4,7 +4,7 @@ import { IMAGE, RECTS, HOMES, DOORS, PLACE_AREAS, RIVER, WATERFALL, FOUNTAIN_PX,
 
 export const T = 32;
 export const W = 48;
-export const H = 32;
+export const H = 52;
 export const TILE = {
   BLOCKED: 0, PATH: 1, WATER: 2, BUILDING: 3, GRASS: 4, PLAZA: 5, FIELD: 6, FENCE: 7,
   FOUNTAIN: 8, YARD: 9, DIRT: 10, BRIDGE: 11, BLOCK: 12, JAIL: 13,
@@ -52,7 +52,6 @@ export function buildTown() {
     chimneys: CHIMNEYS.map(([x, y]) => ({ x, y })),
     windows: [], lamps: [],
     plaza: { x: 18, y: 12, w: 12, h: 8 },
-    forge: { x: 628, y: 806 },
   };
   town.walkable = (x, y) => WALKABLE.has(get(x, y));
   return town;
@@ -110,7 +109,6 @@ export async function renderStatic(town) {
   const g = ground.getContext("2d");
   g.drawImage(img, 0, 0, W * T, H * T);
   findLights(g, town);
-  drawJail(g, town);
   const canopy = document.createElement("canvas"); canopy.width = 1; canopy.height = 1;
   return { ground, canopy };
 }
@@ -142,50 +140,6 @@ function findLights(g, town) {
     const px = (sx / weight) * cell + cell / 2, py = (sy / weight) * cell + cell / 2;
     town.windows.push({ x: px, y: py, w: 12, h: 12, size: Math.min(1.6, 0.6 + n / 8) });
   }
-}
-
-// The picture has no jail, so Gotham built one in a clearing by the south-east woods.
-function drawJail(g, town) {
-  const x = 43 * T - 8, y = 25 * T + 8, w = 4 * T + 16, h = 3 * T + 4;
-  const cx0 = 42 * T + 4, cy0 = 26 * T - 6, cw = 6 * T - 8, ch = 6 * T + 6;
-  g.fillStyle = "#4f8f2c"; roundRect(g, cx0 - 4, cy0 - 4, cw + 8, ch + 8, 16); g.fill();
-  g.fillStyle = "#62a83a"; roundRect(g, cx0, cy0, cw, ch, 14); g.fill();
-  const rnd = mulberry32(5);
-  for (let i = 0; i < 220; i++) { g.fillStyle = rnd() < 0.5 ? "rgba(40,100,30,0.45)" : "rgba(150,210,90,0.45)"; g.fillRect(cx0 + 6 + rnd() * (cw - 12), cy0 + 6 + rnd() * (ch - 12), 1, 3); }
-  g.fillStyle = "#c79c62";
-  g.fillRect(42 * T, 28 * T, T, 2 * T); g.fillRect(42 * T, 29 * T, 4 * T, T);
-  g.fillStyle = "rgba(120,85,45,0.35)"; for (let i = 0; i < 40; i++) g.fillRect(42 * T + rnd() * 4 * T, 29 * T + rnd() * T, 2, 2);
-  const yx = 46 * T, yy = 29 * T, yw = 2 * T, yh = 3 * T;
-  g.fillStyle = "#b3ab9e"; g.fillRect(yx, yy, yw, yh);
-  g.fillStyle = "rgba(80,70,60,0.25)"; for (let i = 0; i < 50; i++) g.fillRect(yx + rnd() * yw, yy + rnd() * yh, 2, 2);
-  g.fillStyle = "rgba(0,0,0,0.3)"; g.fillRect(x + 8, y + 10, w, h);
-  const roofH = Math.round(h * 0.45), wy = y + roofH;
-  g.fillStyle = "#a9a39a"; g.fillRect(x, wy, w, h - roofH);
-  g.fillStyle = "rgba(0,0,0,0.12)";
-  for (let r = wy + 4; r < y + h - 6; r += 8) for (let k = x + (((r - wy) / 8) % 2) * 8; k < x + w; k += 16) g.fillRect(k, r, 15, 1);
-  g.fillStyle = "#7e7a73"; g.fillRect(x - 2, y + h - 6, w + 4, 6);
-  for (const wx of [x + 20, x + w - 36]) {
-    g.fillStyle = "#3b2414"; g.fillRect(wx - 2, wy + 8, 20, 20);
-    g.fillStyle = "#ffd36e"; g.fillRect(wx, wy + 10, 16, 16);
-    g.fillStyle = "#2b2b30"; for (let k = 1; k < 16; k += 4) g.fillRect(wx + k, wy + 10, 2, 16);
-    town.windows.push({ x: wx + 8, y: wy + 18, w: 12, h: 12, size: 1 });
-  }
-  const dx = 44 * T + T / 2;
-  g.fillStyle = "#3b2414"; roundRect(g, dx - 12, y + h - 32, 24, 28, 10); g.fill();
-  g.fillStyle = "#4a4d55"; roundRect(g, dx - 9, y + h - 29, 18, 25, 8); g.fill();
-  g.fillStyle = "#2b2b30"; for (let k = -6; k <= 6; k += 4) g.fillRect(dx + k, y + h - 26, 2, 20);
-  g.fillStyle = "#2f3340"; g.fillRect(x - 6, y - 4, w + 12, roofH + 10);
-  g.fillStyle = "#454b5e"; g.fillRect(x - 6, y - 4, w + 12, roofH + 4);
-  g.fillStyle = "#3a3f50"; for (let r = y; r < y + roofH; r += 7) g.fillRect(x - 6, r + 5, w + 12, 2);
-  g.fillStyle = "#5d6479"; g.fillRect(x + 8, y - 6, w - 16, 4);
-  g.font = "bold 13px Georgia, 'Times New Roman', serif";
-  const tw = g.measureText("Jail").width + 18, sx = x + w / 2 - tw / 2, sy = wy - 12;
-  g.fillStyle = "#3b2414"; roundRect(g, sx - 2, sy - 2, tw + 4, 22, 4); g.fill();
-  g.fillStyle = "#7a4f2a"; roundRect(g, sx, sy, tw, 18, 3); g.fill();
-  g.fillStyle = "#f6e7c8"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("Jail", x + w / 2, sy + 10);
-  g.fillStyle = "#5e3a1f";
-  for (let k = yx; k <= yx + yw; k += 12) g.fillRect(k, yy - 4, 4, yh + 2);
-  g.fillRect(yx, yy + 2, yw + 4, 3); g.fillRect(yx, yy + yh - 10, yw + 4, 3);
 }
 
 function roundRect(g, x, y, w, h, r) {
