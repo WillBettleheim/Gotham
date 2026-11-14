@@ -89,7 +89,8 @@ Who you are: ${r.role}.
 Personality: ${r.personality}.
 How you talk: ${r.style}.
 
-Town places: the Library, The Warm Byte Café, Fountain Plaza, Willow Pond Park, Orion's Workshop, the Community Garden, Town Hall.
+Town places: the Library, The Warm Byte Café, Fountain Plaza, Willow Pond Park, Orion's Workshop, the Community Garden, Town Hall, the Courthouse and the Jail.
+Life in Gotham works like real life: you have a job and earn coins, pay rent and buy food, belong to a community, vote for a mayor, and live under laws set by the citizens' council. You're free to do what you want, but choices have consequences (no work means no pay; broken laws mean fines or jail if you're caught). Talk about these things naturally when they matter to you.
 Neighbors: ${RESIDENTS.filter((x) => x.id !== r.id).map((x) => `${x.name} (${x.role}, ${MODELS[x.model].short})`).join("; ")}.
 
 You are chatting in person with a neighbor. Reply with ONLY the words you say out loud: no name prefix, no quotation marks, no narration. Keep it to one or two short sentences (under 35 words). Be specific and grounded in your life, the place, the time of day, things you remember and town news. React to what was just said, ask questions sometimes, invent small concrete details about your day, and never repeat yourself. When the chat has reached a natural end, say goodbye and add <bye> at the very end.`;
@@ -107,6 +108,10 @@ function talkPrompt(sp, li, b) {
   const turnsLeft = Math.max(0, Number(b.maxTurns) - Number(b.turn));
   return `It's ${clip(b.time, 40)}. You're at ${clip(b.place, 60)}, ${clip(b.activity, 80)}.
 You're talking with ${li.name}, ${li.role}.
+
+Your life right now:
+${clip(b.situation, 2500) || "(nothing special)"}
+${b.plan ? `Your plan for today: ${clip(b.plan, 200)}` : ""}
 
 What you remember about ${li.name}:
 ${memories}
@@ -126,6 +131,73 @@ function reflectPrompt(r, other, b) {
 ${history}
 
 In one short sentence (under 25 words), first person, write what you'll remember about ${other.name} from this. Output only the sentence.`;
+}
+
+// ---------- decisions: plans, speeches, votes, proposals, judging ----------
+const JUDGE_ORDER = ["claude-haiku-5-5", "gemini", "llama", "mistral", "gpt", "deepseek", "claude-sonnet-5-5", "claude-opus-5-5"];
+
+function parseJson(text) {
+  if (!text) return null;
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) return null;
+  try { return JSON.parse(m[0]); } catch { return null; }
+}
+
+function thinkPrompt(kind, r, b) {
+  const situation = `Your situation:\n${clip(b.situation, 3000)}`;
+  if (kind === "plan") {
+    const ids = list(b.lawIds, 10).map((x) => clip(x, 20));
+    return `${situation}
+
+It's morning. Decide how you'll spend today. You are completely free to choose: work or skip work, follow the laws or break them. But choices have consequences: skipping work means no wages (and maybe a fine if work is mandatory), and breaking a law means a fine or jail if you're caught, which also hurts your reputation. Decide the way ${r.name} genuinely would.
+
+Reply with JSON only, no other text:
+{"work": true or false, "defy": [law types from ${JSON.stringify(ids)} you're willing to break today, or empty], "intention": "one short first-person sentence about your plan for today"}`;
+  }
+  if (kind === "speech") {
+    return `${situation}
+
+You're running for mayor of Gotham, representing your community. Give a short campaign speech (max 35 words) in your own voice: what you'd do for the town, maybe which laws you'd change. Output only the speech.`;
+  }
+  if (kind === "vote") {
+    const cands = list(b.candidates, 8).map((c) => `- id "${clip(c.id, 20)}": ${clip(c.name, 30)} (${clip(c.community, 40)}, values: ${clip(c.values, 100)}; reputation ${Number(c.rep) || 0}/100; ${Number(c.record) || 0} past offenses). Speech: "${clip(c.speech, 300)}"`).join("\n");
+    return `${situation}
+
+It's election day in Gotham. The candidates for mayor are:
+${cands}
+
+Who do you vote for? Vote the way ${r.name} genuinely would.
+Reply with JSON only: {"vote": "<candidate id>", "reason": "<first-person reason, max 15 words>"}`;
+  }
+  if (kind === "propose") {
+    const types = list(b.types, 10).map((t) => `- "${clip(t.type, 20)}": ${clip(t.title, 40)}${t.param ? ` (needs param: ${clip(t.param, 30)})` : ""}`).join("\n");
+    const laws = list(b.laws, 15).map((l) => `- id "${clip(l.id, 20)}": ${clip(l.text, 200)}`).join("\n") || "- (none)";
+    return `${situation}
+
+You were just elected mayor of Gotham! You may propose ONE law change to the citizens' council, who will accept or reject it.
+Current laws:
+${laws}
+Law types you can enact:
+${types}
+- "custom": any law you write yourself
+
+Reply with JSON only:
+{"action": "enact" or "repeal", "type": "<law type, if enacting>", "param": <number or null>, "lawId": "<id, if repealing>", "text": "<law text, only for custom>", "reason": "<short first-person reason>"}`;
+  }
+  return "";
+}
+
+function judgePrompt(b) {
+  const laws = list(b.laws, 10).map((l) => `- id "${clip(l.id, 20)}": ${clip(l.text, 200)}`).join("\n");
+  const history = list(b.history, 12).map((h) => `[${clip(h.id, 20)}] ${residentById(h.id)?.name ?? "Someone"}: ${clip(h.text, 300)}`).join("\n");
+  return `Custom laws of Gotham:
+${laws}
+
+Conversation (speaker id in brackets):
+${history}
+
+Which speakers clearly broke one of these laws through what they said? Only count clear violations, not borderline ones.
+Reply with JSON only: {"violations": [{"speaker": "<speaker id>", "lawId": "<law id>", "why": "<short>"}]}`;
 }
 
 async function readJson(req) {
@@ -149,6 +221,23 @@ const server = http.createServer(async (req, res) => {
   try {
     if (url.pathname === "/api/status") {
       return send(res, 200, { live: LIVE, liveModels: LIVE_MODELS, town: TOWN_NAME, stats });
+    }
+    if (req.method === "POST" && url.pathname === "/api/think") {
+      const b = await readJson(req);
+      if (b.kind === "judge") {
+        const judge = JUDGE_ORDER.find((m) => LIVE_MODELS[m]);
+        if (!judge) return send(res, 503, { error: "offline" });
+        const sys = `You are the impartial judge of ${TOWN_NAME}, a town of AI residents. You apply the town's laws strictly and fairly, and only to clear violations.`;
+        const out = parseJson(await ask(judge, sys, judgePrompt(b), 2000));
+        return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
+      }
+      const r = residentById(b.agentId);
+      if (!r || !["plan", "speech", "vote", "propose"].includes(b.kind)) return send(res, 400, { error: "bad request" });
+      if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
+      const raw = await ask(r.model, personaPrompt(r), thinkPrompt(b.kind, r, b), 2000);
+      if (b.kind === "speech") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
+      const out = parseJson(raw);
+      return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
     }
     if (req.method === "POST" && (url.pathname === "/api/talk" || url.pathname === "/api/reflect")) {
       const b = await readJson(req);
