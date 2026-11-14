@@ -22,6 +22,7 @@ export const PLACES = {
   workshop: { name: "Orion's Workshop", acts: ["tinkering with gadgets", "sketching blueprints", "fixing a squeaky gear"] },
   garden: { name: "the Community Garden", acts: ["watering the vegetables", "pulling weeds", "checking on the pumpkins"] },
   townhall: { name: "Town Hall", acts: ["reading the notice board", "filing paperwork", "planning the harvest festival"] },
+  courthouse: { name: "the Courthouse", acts: ["reading the law book", "watching a hearing", "paying a fine"] },
 };
 
 // home = index into the town's houses (0-5 north row, 6-8 south lane)
@@ -242,5 +243,43 @@ export const RESIDENTS = [
     questions: ["What are you hungry for?", "Do you fly kites?", "What should be on the festival menu?"],
   },
 ];
+
+// ---------- Jobs, personality traits and communities ----------
+// traits (0-1): diligence = likes to work, rebel = willing to break rules,
+// ambition = wants power/office, generosity = helps neighbors in need.
+const PROFILE = {
+  ophelia: { job: "Librarian", work: { place: "library", from: 9, to: 16, wage: 12 }, traits: { diligence: 0.8, rebel: 0.2, ambition: 0.4, generosity: 0.7 }, community: "lantern" },
+  orion: { job: "Inventor", work: { place: "workshop", from: 11, to: 19, wage: 11 }, traits: { diligence: 0.6, rebel: 0.6, ambition: 0.5, generosity: 0.6 }, community: "tinkerers" },
+  sonny: { job: "Café owner", work: { place: "cafe", from: 7, to: 15, wage: 14 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.8 }, community: "hearth" },
+  sage: { job: "Painter", work: { place: "park", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.4, rebel: 0.7, ambition: 0.2, generosity: 0.6 }, community: "spirits" },
+  selene: { job: "Town clerk", work: { place: "townhall", from: 9, to: 17, wage: 13 }, traits: { diligence: 0.9, rebel: 0.1, ambition: 0.95, generosity: 0.6 }, community: "lantern" },
+  hana: { job: "Gardener", work: { place: "garden", from: 6, to: 13, wage: 10 }, traits: { diligence: 0.9, rebel: 0.3, ambition: 0.2, generosity: 0.7 }, community: "hearth" },
+  hugo: { job: "Mail carrier", work: { place: "townhall", from: 6, to: 12, wage: 11 }, traits: { diligence: 0.8, rebel: 0.4, ambition: 0.3, generosity: 0.5 }, community: "tinkerers" },
+  hazel: { job: "Cartographer's apprentice", work: { place: "library", from: 10, to: 15, wage: 8 }, traits: { diligence: 0.7, rebel: 0.3, ambition: 0.4, generosity: 0.6 }, community: "tinkerers" },
+  nova: { job: "Photographer", work: { place: "plaza", from: 10, to: 16, wage: 10 }, traits: { diligence: 0.6, rebel: 0.5, ambition: 0.7, generosity: 0.4 }, community: "spirits" },
+  gus: { job: "Baker", work: { place: "cafe", from: 5, to: 10, wage: 13 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.7 }, community: "hearth" },
+  dex: { job: "Math tutor", work: { place: "library", from: 13, to: 18, wage: 12 }, traits: { diligence: 0.7, rebel: 0.4, ambition: 0.6, generosity: 0.3 }, community: "lantern" },
+  lola: { job: "Yarn seller", work: { place: "plaza", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.5, rebel: 0.6, ambition: 0.4, generosity: 0.9 }, community: "spirits" },
+  mira: { job: "Chef", work: { place: "cafe", from: 11, to: 17, wage: 13 }, traits: { diligence: 0.8, rebel: 0.5, ambition: 0.6, generosity: 0.5 }, community: "hearth" },
+};
+for (const r of RESIDENTS) Object.assign(r, PROFILE[r.id]);
+
+export const COMMUNITIES = {
+  lantern: { name: "Lantern Society", color: "#fbbf24", icon: "🏮", hangout: "townhall", values: "order, tradition and safe streets", strict: 0.9 },
+  hearth: { name: "Hearth & Harvest", color: "#fb923c", icon: "🥖", hangout: "cafe", values: "good food, fair wages and looking after neighbors", strict: 0.5 },
+  tinkerers: { name: "Tinkerers' Union", color: "#38bdf8", icon: "⚙️", hangout: "workshop", values: "hard work, progress and new ideas", strict: 0.6 },
+  spirits: { name: "Free Spirits", color: "#c084fc", icon: "🌀", hangout: "park", values: "freedom, art and fewer rules", strict: 0.15 },
+};
+
+// Laws the player can enact. `param` is the adjustable number (hour or percent).
+export const LAW_TYPES = {
+  curfew: { title: "Curfew", param: { label: "Home by (hour)", default: 23, min: 19, max: 2 }, text: (p) => `Everyone must be home by ${p}:00 until 6:00.`, penalty: { kind: "fine", amount: 20 } },
+  quiet: { title: "Quiet hours", param: { label: "From (hour)", default: 22, min: 19, max: 2 }, text: (p) => `No chatting outdoors from ${p}:00 until 6:00.`, penalty: { kind: "fine", amount: 10 } },
+  work: { title: "Mandatory work", text: () => "Everyone must work at least half of their shift.", penalty: { kind: "fine", amount: 25 } },
+  garden: { title: "Private garden", text: () => "Only the gardener may enter the Community Garden.", penalty: { kind: "fine", amount: 15 } },
+  theft: { title: "No stealing", text: () => "Taking food without paying is theft.", penalty: { kind: "jail", amount: 6 } },
+  tax: { title: "Income tax", param: { label: "Percent", default: 10, min: 0, max: 50 }, text: (p) => `${p}% of all wages go to the town treasury.`, noPenalty: true },
+  custom: { title: "Custom law", text: (p, t) => t, penalty: { kind: "fine", amount: 15 } },
+};
 
 export const residentById = (id) => RESIDENTS.find((r) => r.id === id);
