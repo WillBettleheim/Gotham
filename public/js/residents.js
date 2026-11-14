@@ -22,7 +22,11 @@ export const PLACES = {
   plaza: { name: "Fountain Plaza", acts: ["sitting by the fountain", "strolling the plaza", "feeding the pigeons"] },
   park: { name: "the riverside and the green", acts: ["watching the river", "listening to the waterfall", "resting on a bench", "watching the ducks"] },
   market: { name: "the Market", acts: ["browsing the market stalls", "haggling over apples", "picking out fresh produce"] },
-  workshop: { name: "the Blacksmith", acts: ["tinkering at the forge", "sketching blueprints", "hammering a squeaky gear"] },
+  police: { name: "the Police station", acts: ["checking in at the Police station", "reading the wanted board", "filing a report"] },
+  bakery: { name: "the Bakery", acts: ["buying warm bread at the Bakery", "smelling the cinnamon rolls", "picking up a pie"] },
+  school: { name: "the School", acts: ["visiting the School", "helping out in a classroom", "reading in the schoolyard"] },
+  bank: { name: "the Bank", acts: ["depositing coins at the Bank", "asking about a loan", "counting change at the Bank"] },
+  post: { name: "the Post Office", acts: ["mailing a letter", "picking up a parcel", "buying stamps"] },
   garden: { name: "the Community Garden", acts: ["watering the vegetables", "pulling weeds", "checking on the pumpkins"] },
   townhall: { name: "Town Hall", acts: ["reading the notice board", "filing paperwork", "planning the harvest festival"] },
   courthouse: { name: "the court at Town Hall", acts: ["reading the law book", "watching a hearing", "paying a fine"] },
@@ -49,11 +53,11 @@ export const RESIDENTS = [
   },
   {
     id: "orion", name: "Orion", model: "claude-opus-5-5", home: 1,
-    role: "an inventor who runs the Blacksmith forge and lives in its back room",
+    role: "the town doctor at the Clinic, an inventor at heart who builds odd medical gadgets",
     personality: "enthusiastic, scatterbrained, endlessly optimistic about prototypes that half-work; a night owl",
     style: "excited bursts, technical metaphors, laughs at his own failures",
-    work: { place: "workshop", from: 11, to: 19 },
-    weights: { workshop: 4, cafe: 2, plaza: 2, park: 1, library: 1 },
+    work: { place: "clinic", from: 10, to: 18 },
+    weights: { clinic: 4, cafe: 2, plaza: 2, park: 1, library: 1 },
     sleep: [1, 9],
     look: { skin: "#d9a07c", hair: "#e8e1d4", hairStyle: "spiky", shirt: "#4b5d9e", pants: "#2e2a24" },
     topics: [
@@ -133,10 +137,10 @@ export const RESIDENTS = [
   },
   {
     id: "hugo", name: "Hugo", model: "claude-haiku-5-5", home: 6,
-    role: "the mail carrier who zips all over town on a bicycle",
+    role: "the mail carrier who works out of the Post Office and zips all over town on a bicycle",
     personality: "energetic, cheerful, always in a hurry, hears a little of everyone's news",
     style: "quick and breezy, short sentences, friendly",
-    weights: { plaza: 2, cafe: 2, library: 1, park: 1, garden: 1, townhall: 2, workshop: 1 },
+    weights: { plaza: 2, cafe: 2, library: 1, park: 1, garden: 1, townhall: 2, post: 2, school: 1 },
     sleep: [22, 5],
     look: { skin: "#f0c09a", hair: "#2f4f7f", hairStyle: "cap", shirt: "#3d7cc9", pants: "#25344f" },
     topics: [
@@ -152,7 +156,7 @@ export const RESIDENTS = [
     role: "an apprentice cartographer and the newest resident in town",
     personality: "curious, earnest, a bit shy at first, asks lots of questions to learn how the town works",
     style: "eager and inquisitive, short questions, delighted by small discoveries",
-    weights: { library: 3, plaza: 2, park: 2, garden: 1, cafe: 1, workshop: 1 },
+    weights: { library: 3, plaza: 2, park: 2, garden: 1, cafe: 1, school: 1 },
     sleep: [22, 7],
     look: { skin: "#fbd7bc", hair: "#d8a24a", hairStyle: "short", shirt: "#e6c84a", pants: "#4d5d3a" },
     topics: [
@@ -198,7 +202,7 @@ export const RESIDENTS = [
   },
   {
     id: "dex", name: "Dex", model: "deepseek", home: 10,
-    role: "a quiet mathematician who plays chess by the fountain and leaves puzzles on the notice board",
+    role: "Gotham's police officer, a quiet, by-the-book detective who loves puzzles and plays chess by the fountain",
     personality: "reserved, precise, secretly funny, loves patterns, puzzles and a well-made argument",
     style: "calm and concise, thinks out loud in neat steps, dry humor",
     weights: { plaza: 4, library: 3, cafe: 1, park: 1 },
@@ -252,16 +256,16 @@ export const RESIDENTS = [
 // ambition = wants power/office, generosity = helps neighbors in need.
 const PROFILE = {
   ophelia: { job: "Librarian", work: { place: "library", from: 9, to: 16, wage: 12 }, traits: { diligence: 0.8, rebel: 0.2, ambition: 0.4, generosity: 0.7 }, community: "lantern" },
-  orion: { job: "Inventor", work: { place: "workshop", from: 11, to: 19, wage: 11 }, traits: { diligence: 0.6, rebel: 0.6, ambition: 0.5, generosity: 0.6 }, community: "tinkerers" },
+  orion: { job: "Doctor", work: { place: "clinic", from: 10, to: 18, wage: 16 }, traits: { diligence: 0.6, rebel: 0.6, ambition: 0.5, generosity: 0.6 }, community: "tinkerers" },
   sonny: { job: "Innkeeper", work: { place: "cafe", from: 7, to: 15, wage: 14 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.8 }, community: "hearth" },
   sage: { job: "Painter", work: { place: "park", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.4, rebel: 0.7, ambition: 0.2, generosity: 0.6 }, community: "spirits" },
   selene: { job: "Town clerk", work: { place: "townhall", from: 9, to: 17, wage: 13 }, traits: { diligence: 0.9, rebel: 0.1, ambition: 0.95, generosity: 0.6 }, community: "lantern" },
   hana: { job: "Gardener", work: { place: "garden", from: 6, to: 13, wage: 10 }, traits: { diligence: 0.9, rebel: 0.3, ambition: 0.2, generosity: 0.7 }, community: "hearth" },
-  hugo: { job: "Mail carrier", work: { place: "townhall", from: 6, to: 12, wage: 11 }, traits: { diligence: 0.8, rebel: 0.4, ambition: 0.3, generosity: 0.5 }, community: "tinkerers" },
+  hugo: { job: "Mail carrier", work: { place: "post", from: 6, to: 12, wage: 11 }, traits: { diligence: 0.8, rebel: 0.4, ambition: 0.3, generosity: 0.5 }, community: "tinkerers" },
   hazel: { job: "Cartographer's apprentice", work: { place: "library", from: 10, to: 15, wage: 8 }, traits: { diligence: 0.7, rebel: 0.3, ambition: 0.4, generosity: 0.6 }, community: "tinkerers" },
   nova: { job: "Photographer", work: { place: "plaza", from: 10, to: 16, wage: 10 }, traits: { diligence: 0.6, rebel: 0.5, ambition: 0.7, generosity: 0.4 }, community: "spirits" },
   gus: { job: "Baker & shopkeeper", work: { place: "store", from: 5, to: 12, wage: 13 }, traits: { diligence: 0.9, rebel: 0.2, ambition: 0.5, generosity: 0.7 }, community: "hearth" },
-  dex: { job: "Math tutor", work: { place: "library", from: 13, to: 18, wage: 12 }, traits: { diligence: 0.7, rebel: 0.4, ambition: 0.6, generosity: 0.3 }, community: "lantern" },
+  dex: { job: "Police officer", work: { place: "police", from: 8, to: 16, wage: 14 }, traits: { diligence: 0.7, rebel: 0.4, ambition: 0.6, generosity: 0.3 }, community: "lantern" },
   lola: { job: "Yarn seller", work: { place: "market", from: 10, to: 16, wage: 9 }, traits: { diligence: 0.5, rebel: 0.6, ambition: 0.4, generosity: 0.9 }, community: "spirits" },
   mira: { job: "Inn chef", work: { place: "cafe", from: 11, to: 17, wage: 13 }, traits: { diligence: 0.8, rebel: 0.5, ambition: 0.6, generosity: 0.5 }, community: "hearth" },
 };
@@ -275,7 +279,7 @@ for (const r of RESIDENTS) {
 export const COMMUNITIES = {
   lantern: { name: "Lantern Society", color: "#fbbf24", icon: "🏮", hangout: "townhall", values: "order, tradition and safe streets", strict: 0.9 },
   hearth: { name: "Hearth & Harvest", color: "#fb923c", icon: "🥖", hangout: "cafe", values: "good food, fair wages and looking after neighbors", strict: 0.5 },
-  tinkerers: { name: "Tinkerers' Union", color: "#38bdf8", icon: "⚙️", hangout: "workshop", values: "hard work, progress and new ideas", strict: 0.6 },
+  tinkerers: { name: "Tinkerers' Union", color: "#38bdf8", icon: "⚙️", hangout: "plaza", values: "hard work, progress and new ideas", strict: 0.6 },
   spirits: { name: "Free Spirits", color: "#c084fc", icon: "🌀", hangout: "park", values: "freedom, art and fewer rules", strict: 0.15 },
 };
 
@@ -290,4 +294,8 @@ export const LAW_TYPES = {
   custom: { title: "Custom law", text: (p, t) => t, penalty: { kind: "fine", amount: 15 } },
 };
 
-export const residentById = (id) => RESIDENTS.find((r) => r.id === id);
+// Newcomers who move to town at runtime register here so everyone can look them up.
+const NEWCOMERS = [];
+export function registerResident(r) { if (!NEWCOMERS.some((x) => x.id === r.id)) NEWCOMERS.push(r); }
+export function unregisterResident(id) { const i = NEWCOMERS.findIndex((x) => x.id === id); if (i >= 0) NEWCOMERS.splice(i, 1); }
+export const residentById = (id) => RESIDENTS.find((r) => r.id === id) ?? NEWCOMERS.find((r) => r.id === id);
