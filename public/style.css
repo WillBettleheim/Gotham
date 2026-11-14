@@ -198,6 +198,33 @@ input:focus, select:focus { outline: 2px solid rgba(255, 207, 110, 0.5); outline
 .hist { font-size: 12.5px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--line); }
 .hist b { color: var(--text); }
 
+/* live tab */
+.live-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.live-stats div { background: var(--panel-2); border-radius: 10px; padding: 8px; text-align: center; }
+.live-stats b { display: block; font-size: 18px; font-weight: 900; }
+.live-stats span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.now-card { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; border-left: 3px solid var(--c, var(--accent)); cursor: pointer; }
+.now-card:hover { background: var(--panel-3); }
+.now-card .t { font-size: 12px; font-weight: 800; display: flex; justify-content: space-between; gap: 8px; }
+.now-card .t small { color: var(--muted); font-weight: 700; }
+.now-card p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--text); }
+.now-card p b { font-weight: 800; }
+.now-card .typing { color: var(--muted); font-style: italic; }
+.group-h { font-size: 11px; font-weight: 800; color: var(--muted); margin: 10px 0 4px; display: flex; gap: 6px; align-items: center; }
+.group-h i { font-style: normal; background: var(--panel-3); border-radius: 99px; padding: 0 7px; font-size: 10.5px; }
+.lrow { display: grid; grid-template-columns: 10px 76px 1fr; gap: 8px; align-items: baseline; padding: 5px 6px; border-radius: 8px; cursor: pointer; font-size: 12.5px; }
+.lrow:hover { background: var(--panel-2); }
+.lrow .dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+.lrow .nm { font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lrow .ac { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.job { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 10px; background: var(--panel-2); border-radius: 10px; margin-bottom: 5px; font-size: 12.5px; }
+.job b { font-weight: 800; }
+.job small { color: var(--muted); grid-column: 1 / -1; }
+.job .open { color: var(--good); font-weight: 800; font-size: 11.5px; }
+.job .full { color: var(--muted); font-size: 11.5px; }
+.res.new { animation: newIn 1.2s ease-out; }
+@keyframes newIn { from { background: rgba(255, 207, 110, 0.35); } }
+
 /* gazette */
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .chips button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800; color: var(--muted); cursor: pointer; }
