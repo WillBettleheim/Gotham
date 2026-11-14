@@ -1,0 +1,14 @@
+{
+  "name": "ai-town",
+  "version": "0.1.0",
+  "description": "A cozy 2D town where AI characters (different Claude models) live, wander and chat with each other.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "offline": "AI_TOWN_OFFLINE=1 node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0"
+  }
+}
