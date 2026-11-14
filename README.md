@@ -57,6 +57,12 @@ Free model names change often, so every model can be overridden in `.env` (see `
 - **Town news:** post an announcement from the sidebar and residents will bring it up.
 - **Day and night:** street lamps, glowing windows, chimney smoke, ducks on the pond and fireflies at night.
 
+## The town
+
+Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, Blacksmith, Clinic, the farm with its barn and windmill, and a Jail built in the south-east clearing.
+
+To use a different picture, replace `town.webp` (1536×1024 works best) and re-trace the rectangles in `mapdata.js`.
+
 ## Society: work, laws, jail, communities and elections
 
 Every resident is free to do what they want, and every choice has consequences.
@@ -83,7 +89,8 @@ server.js            Node server: serves the page; /api/talk, /api/reflect and /
                      (plans, speeches, votes, mayor proposals, judging) call each resident's model
 providers.js         Gemini, GPT, DeepSeek, Llama and Mistral (OpenAI-style chat APIs)
 public/js/residents.js  who lives here (personas, schedules, looks), shared by server and browser
-public/js/map.js     town layout, A* pathfinding, pre-rendered map art
+public/js/mapdata.js streets, doors, homes and places traced from the town picture
+public/js/map.js     builds the walkable grid, A* pathfinding, loads the picture, finds window lights, draws the jail
 public/js/sprites.js procedurally drawn characters
 public/js/sim.js     daily routines, free-will choices, movement, conversations, memories
 public/js/society.js economy, laws, crime, jail, communities, elections, gazette
@@ -92,4 +99,4 @@ public/js/ui.js      sidebar tabs, resident card, laws council, politics, gazett
 public/js/main.js    rendering, lighting, weather, fireworks and camera
 ```
 
-Calls use low effort and short replies to keep chatter quick and cheap, and at most 2 conversations run at once in live mode. Add residents by appending to `RESIDENTS` in `public/js/residents.js` (all 13 houses are taken, so add a house in `map.js` too). To add a new model, add it to `MODELS` and to `PROVIDERS` in `providers.js`.
+Calls use low effort and short replies to keep chatter quick and cheap, and at most 2 conversations run at once in live mode. Add residents by appending to `RESIDENTS` in `public/js/residents.js` (give them a home in `HOMES` in `mapdata.js`). To add a new model, add it to `MODELS` and to `PROVIDERS` in `providers.js`.
