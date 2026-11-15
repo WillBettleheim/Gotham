@@ -36,6 +36,7 @@
         <button id="skipNight" title="Skip to morning" hidden>⏭</button>
         <button id="muteBtn" title="Sound on/off">🔊</button>
         <button id="disasterBtn" class="danger" title="Trigger a disaster">🚨</button>
+        <button id="fullBtn" title="Full-screen map">⛶</button>
       </div>
       <div class="ticker" id="ticker">
         <span class="chip glass" title="Weather and season" id="tWeather">☀️ Sunny</span>
@@ -48,6 +49,7 @@
       </div>
     </div>
     <div id="minimap" class="glass" title="Click to jump there"><canvas id="mini"></canvas></div>
+    <div id="peek" class="glass" hidden></div>
     <div id="disasterMenu" class="glass" hidden>
       <div class="dm-h"><b>🚨 Trigger a disaster</b><small>Watch how Gotham's residents react</small></div>
       <div id="disasterList"></div>
@@ -110,6 +112,10 @@
           <p id="popMsg" class="note wide"></p>
         </div>
         <div id="departures"></div>
+        <h2>Construction</h2>
+        <div id="construction"></div>
+        <h2>Businesses</h2>
+        <div id="businesses"></div>
         <h2>Trends</h2>
         <div class="chips" id="trendChips"></div>
         <canvas id="trendChart" class="trend" width="760" height="240"></canvas>
@@ -151,6 +157,8 @@
       <section class="pane" data-pane="laws">
         <p class="intro">You are Gotham's <b>citizens' council</b>. The laws you pass are enforced: residents who get caught breaking them pay a fine or go to jail. Residents can't pay? Jail.</p>
         <div id="proposals"></div>
+        <h2>Petitions</h2>
+        <div id="petitions"></div>
         <h2>Laws in force</h2>
         <div id="lawList"></div>
         <h2>Pass a new law</h2>
@@ -173,6 +181,10 @@
         <div id="electionBox"></div>
         <h2>Past elections</h2>
         <div id="history"></div>
+        <h2>Riverton</h2>
+        <div id="riverton"></div>
+        <h2>Model rivalry</h2>
+        <div id="rivalry"></div>
       </section>
 
       <section class="pane" data-pane="gazette">
