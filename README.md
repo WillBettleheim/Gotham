@@ -1,6 +1,6 @@
 # Gotham — an AI town
 
-A cozy 2D town where AI characters live together. Residents run on AI models from different labs: **Claude** (Opus, Sonnet, Haiku), **Gemini**, **GPT**, **DeepSeek**, **Llama** and **Mistral**. They wake up, go to work, wander between the café, library, park, plaza and garden, bump into each other and chat. They also remember their conversations and make friends.
+A cozy 2D town where AI characters live together. Residents run on AI models from different labs: **Claude** (Opus, Sonnet, Haiku), **Gemini**, **GPT**, **DeepSeek**, **Llama** and **Mistral**. They wake up, go to work, wander between the café, library, park, plaza and garden, bump into each other and chat. They also remember their conversations, make friends and rivals, vote in elections, break your laws, start businesses and petitions, build new buildings, trade with the neighboring town and react to disasters you unleash.
 
 ![Gotham](https://img.shields.io/badge/residents-13-ffcf6e) ![models](https://img.shields.io/badge/models-Claude%20·%20Gemini%20·%20GPT%20·%20DeepSeek%20·%20Llama%20·%20Mistral-a78bfa)
 
@@ -98,6 +98,31 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Live tab:** every conversation as it happens, arrests in progress, the election, and what each resident is doing right now. Click anyone to follow them.
 - **Gotham Gazette:** every arrest, fine, election and community shake-up is reported. Click an entry or a toast to jump to the resident involved.
 
+## Deeper lives
+
+- **Life stories:** every resident keeps a running life story built from their big moments (jobs, arrests, romances, heroics, elections). Live models rewrite it each night and it shapes how they talk. Read it on their card.
+- **Group conversations:** when three or more residents meet at the café, plaza, inn, garden or market, they hold a group chat, taking turns.
+- **Petitions:** residents with a grievance start petitions and collect signatures from people who agree. A petition with enough signatures lands in the ⚖️ Laws tab for you to approve or reject.
+- **Businesses:** ambitious residents with savings open their own businesses (a fish stall, veggie stand, tea cart, art stall, book swap or repair shop). They earn or lose money each day, and a business that loses money for two days goes bust.
+- **Gatherings:** residents organize their own events (a picnic, board game night, a sing-along, a garden tea party) and invite friends.
+- **Model rivalry:** the Politics tab compares the models: residents, average coins, mood and reputation, crimes, jail time, elections won, couples, businesses, goals met, catches and chats, per model.
+
+## Growing the town
+
+- **Construction:** the council can build a Theater, the Riverside Flats (12 new homes), a Gym or a Hospital on the two building lots in South Gotham. Watch the scaffolding and crane go up; residents volunteer to speed the work, and the finished building appears on the map with new jobs and places to go.
+- **Riverton:** a neighboring town down the east road. Send gifts and sign a trade deal to raise relations. Riverton's merchant visits the market, residents travel there to sell goods and come back with news, and a friendly Riverton sends aid when disaster strikes.
+- **Ambient life:** butterflies, flocks of birds and falling autumn leaves.
+- **Peek inside:** tap a building to see who is inside and what it's for.
+- **Full-screen map (⛶):** hides the sidebar, which helps on phones.
+
+## Tests
+
+```bash
+npm test
+```
+
+Map tests check that every home, place, door, lot and the Riverton road can be reached and that paths stay on walkable ground. A headless simulation runs the town for three days, every disaster, construction and immigration, and checks that every number stays sane. Server tests cover offline mode, bad requests, the spending cap, path traversal and the provider client. Pathfinding uses A* with a binary heap: 441 home-to-home routes take about 40 ms, and the renderer skips anything off screen.
+
 ## Controls
 
 - Drag to pan; scroll, pinch, the −/+ buttons or the −/+ keys to zoom
@@ -127,6 +152,10 @@ public/js/world.js   seasons, weather and health
 public/js/disasters.js disasters, resident reactions, damage and rebuilding
 public/js/sound.js   the generated soundscape
 public/js/stats.js   trends over time and town milestones
+public/js/civic.js   petitions, resident businesses, gatherings, model rivalry stats
+public/js/construction.js building projects on the town lots
+public/js/riverton.js the neighboring town: relations, trade, merchant, travel
+tests/               map, headless simulation and server tests (npm test)
 tools/mapgen/        scripts that build the map picture from the original
 public/assets/logo.svg the Gotham crest (also the browser icon)
 public/js/offline.js built-in chatter for offline mode
