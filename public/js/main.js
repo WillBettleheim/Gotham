@@ -3,6 +3,8 @@ import { drawCharacter, roundRect } from "./sprites.js";
 import { MODELS, COMMUNITIES } from "./residents.js";
 import { Sim, fmtTime, periodOf } from "./sim.js";
 import { createUI } from "./ui.js";
+import { Sound } from "./sound.js";
+import { FLOOD_ZONE } from "./mapdata.js";
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
@@ -34,6 +36,22 @@ $("resetBtn").onclick = () => { if (confirm("Start Gotham over? All memories, mo
 
 // fireworks when a mayor is elected
 const sparks = [];
+// ---------- sound ----------
+const sound = new Sound();
+const muteBtn = $("muteBtn");
+const syncMute = () => { muteBtn.textContent = sound.muted ? "🔇" : "🔊"; muteBtn.title = sound.muted ? "Sound off (click to turn on)" : "Sound on"; };
+muteBtn.onclick = () => { sound.start(); sound.setMuted(!sound.muted); syncMute(); };
+syncMute();
+sim.society.on((type, data) => {
+  if (type === "gazette" && data.important) sound.play(data.entry.kind === "election" ? "bell" : data.entry.icon === "🏆" || data.entry.icon === "🏅" ? "cheer" : "chime");
+  if (type === "gazette" && /caught a/.test(data.entry.text)) sound.play("pop");
+});
+sim.society.disasters.on((type, d) => {
+  if (type === "start") sound.play(d.type === "earthquake" ? "rumble" : "alarm");
+  if (type === "end") sound.play("cheer");
+});
+let soundTick = 0, lastFlash = 0;
+
 sim.society.on((type) => {
   if (type !== "elected") return;
   for (let k = 0; k < 6; k++) setTimeout(() => burst(town.fountain.x + (Math.random() - 0.5) * 300, town.fountain.y - 90 - Math.random() * 120), k * 450);
@@ -237,7 +255,9 @@ function frame(now) {
     cam.x += (tx - cam.x) * Math.min(1, dt * 4); cam.y += (ty - cam.y) * Math.min(1, dt * 4); clampCam();
   }
 
-  ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, -cam.x * cam.zoom * dpr, -cam.y * cam.zoom * dpr);
+  const quake = sim.society.disasters.shake;
+  const sx = quake > 0 ? (Math.random() - 0.5) * 10 * Math.min(1, quake) : 0, sy = quake > 0 ? (Math.random() - 0.5) * 8 * Math.min(1, quake) : 0;
+  ctx.setTransform(dpr * cam.zoom, 0, 0, dpr * cam.zoom, (-cam.x * cam.zoom + sx) * dpr, (-cam.y * cam.zoom + sy) * dpr);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(layers.ground, 0, 0);
   drawWaterLife(t);
@@ -256,13 +276,26 @@ function frame(now) {
     drawCharacter(ctx, a, t);
     drawOccluders(a);
   }
+  drawDisasters(dt, t);
   drawSmoke(dt, t);
   drawClouds(t);
 
-  const dark = darkness(sim.time);
+  const world = sim.society.world, weather = world.current;
+  const dark = Math.max(darkness(sim.time), { storm: 0.4, rain: 0.16, fog: 0.08, snow: 0.06, cloudy: 0.04 }[weather] ?? 0);
   drawLighting(dark, sunset(sim.time), t);
-  if (dark > 0.3) drawFireflies(t, dark);
+  if (dark > 0.3 && weather !== "storm" && weather !== "rain") drawFireflies(t, dark);
   drawSparks(dt);
+  drawWeather(dt, t, weather, world.season.id);
+  // lightning
+  const flash = sim.society.disasters.flash;
+  if (flash > 0.95 && lastFlash < 0.5) sound.play("thunder");
+  lastFlash = flash;
+  if (flash > 0.02) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(235,240,255,${flash * 0.55})`; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore(); }
+  if (now - soundTick > 250) {
+    soundTick = now;
+    const ev = sim.society.life.event;
+    sound.update({ dark: darkness(sim.time) > 0.3, weather, fire: !!sim.society.disasters.current("fire"), musicNight: ev?.active && ev.id === "music" });
+  }
 
   // screen-space UI
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -379,6 +412,82 @@ function drawOccluders(a) {
   ctx.drawImage(occBuf, x0, y0);
 }
 
+// ---------- disasters on the map ----------
+const flames = [];
+function drawDisasters(dt, t) {
+  const dis = sim.society.disasters;
+  // damaged buildings
+  for (const r of Object.values(dis.damaged)) {
+    const rect = r.building.rect;
+    if (!rect) continue;
+    const [x, y, w, h] = rect;
+    ctx.fillStyle = "rgba(25,18,16,0.42)"; ctx.fillRect(x, y, w, h);
+    ctx.font = "26px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🚧", x + w / 2, y + h / 2);
+    ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(x + w / 2 - 40, y + h / 2 + 20, 80, 7);
+    ctx.fillStyle = "#f2b843"; ctx.fillRect(x + w / 2 - 39, y + h / 2 + 21, 78 * r.progress, 5);
+  }
+  // fire: flames, glow and smoke
+  const fire = dis.current("fire");
+  if (fire) {
+    const [x, y, w, h] = fire.building.rect;
+    const n = Math.round(4 + 6 * Math.min(2, fire.intensity));
+    for (let i = 0; i < n; i++) if (Math.random() < 0.45) flames.push({ x: x + 20 + Math.random() * (w - 40), y: y + h * (0.2 + Math.random() * 0.65), life: 1, s: 6 + Math.random() * 11 * Math.min(1.6, fire.intensity), sway: Math.random() * 6 });
+    const g = ctx.createRadialGradient(x + w / 2, y + h / 2, 10, x + w / 2, y + h / 2, w * 0.8);
+    g.addColorStop(0, `rgba(255,120,30,${0.32 * Math.min(1.5, fire.intensity)})`); g.addColorStop(1, "rgba(255,60,10,0)");
+    ctx.fillStyle = g; ctx.fillRect(x - w * 0.3, y - h * 0.3, w * 1.6, h * 1.6);
+    if (Math.random() < 0.5) smoke.push({ x: x + 20 + Math.random() * (w - 40), y: y + 10, life: 0, big: true });
+  }
+  ctx.save();
+  for (let i = flames.length - 1; i >= 0; i--) {
+    const f = flames[i];
+    f.life -= 0.045; f.y -= 0.7 + (1 - f.life) * 0.8;
+    if (f.life <= 0) { flames.splice(i, 1); continue; }
+    const s2 = f.s * (0.4 + f.life * 0.6), fx = f.x + Math.sin(t * 9 + f.sway) * 1.5;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = `rgba(230,${Math.round(50 + 90 * f.life)},20,${0.8 * f.life})`;
+    ctx.beginPath(); ctx.moveTo(fx - s2 / 2, f.y); ctx.quadraticCurveTo(fx - s2 / 3, f.y - s2 * 1.1, fx, f.y - s2 * 1.9); ctx.quadraticCurveTo(fx + s2 / 3, f.y - s2 * 1.1, fx + s2 / 2, f.y); ctx.fill();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = `rgba(255,${Math.round(170 + 70 * f.life)},90,${0.55 * f.life})`;
+    ctx.beginPath(); ctx.moveTo(fx - s2 / 4, f.y); ctx.quadraticCurveTo(fx, f.y - s2 * 1.1, fx + s2 / 4, f.y); ctx.fill();
+  }
+  ctx.restore();
+  if (flames.length > 400) flames.splice(0, flames.length - 400);
+  // flood water over the riverside
+  const flood = dis.current("flood");
+  if (flood) {
+    const a = Math.min(0.55, 0.25 + flood.intensity * 0.2);
+    for (const [x, y, w, h] of FLOOD_ZONE) {
+      ctx.fillStyle = `rgba(47,127,196,${a})`; ctx.fillRect(x * T, y * T, w * T, h * T);
+      ctx.strokeStyle = `rgba(200,235,255,${a})`; ctx.lineWidth = 1.5;
+      for (let k = 0; k < h * 2; k++) {
+        const yy = y * T + k * 16 + 8 + Math.sin(t * 2 + k) * 3;
+        ctx.beginPath(); ctx.moveTo(x * T, yy); for (let xx = 0; xx <= w * T; xx += 12) ctx.lineTo(x * T + xx, yy + Math.sin(xx / 10 + t * 3) * 2); ctx.stroke();
+      }
+    }
+  }
+}
+
+// ---------- weather in screen space ----------
+const drops = [];
+function drawWeather(dt, t, weather, season) {
+  ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (season === "winter" && weather !== "storm") { ctx.fillStyle = "rgba(210,225,255,0.08)"; ctx.fillRect(0, 0, vw, vh); }
+  if (season === "autumn") { ctx.fillStyle = "rgba(255,150,60,0.05)"; ctx.fillRect(0, 0, vw, vh); }
+  if (weather === "fog") { const g = ctx.createLinearGradient(0, 0, 0, vh); g.addColorStop(0, "rgba(225,230,235,0.35)"); g.addColorStop(1, "rgba(225,230,235,0.15)"); ctx.fillStyle = g; ctx.fillRect(0, 0, vw, vh); }
+  const want = weather === "rain" ? 160 : weather === "storm" ? 320 : weather === "snow" ? 140 : 0;
+  while (drops.length < want) drops.push({ x: Math.random() * vw, y: Math.random() * vh, v: 0.6 + Math.random() * 0.6, p: Math.random() * 6 });
+  if (drops.length > want) drops.length = want;
+  const snow = weather === "snow";
+  ctx.strokeStyle = weather === "storm" ? "rgba(200,215,240,0.55)" : "rgba(190,210,240,0.45)"; ctx.lineWidth = 1.2; ctx.fillStyle = "rgba(255,255,255,0.85)";
+  for (const d of drops) {
+    if (snow) { d.y += 40 * dt * d.v * 0.5 + 0.6; d.x += Math.sin(t + d.p) * 0.4; ctx.beginPath(); ctx.arc(d.x, d.y, 1.6 * d.v, 0, Math.PI * 2); ctx.fill(); }
+    else { const wind = weather === "storm" ? 6 : 2; d.y += 14 * d.v; d.x += wind * d.v; ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - wind * 1.5, d.y - 12 * d.v); ctx.stroke(); }
+    if (d.y > vh) { d.y = -10; d.x = Math.random() * vw; }
+    if (d.x > vw) d.x = 0;
+  }
+  ctx.restore();
+}
+
 function drawFountain(t) {
   // the picture has the fountain; add moving water on top of it
   const { x: cx, y: cy } = town.fountain;
@@ -467,6 +576,8 @@ function drawLighting(dark, warm, t) {
   for (const w of town.windows) hole(w.x, w.y + 6, 34 + 26 * (w.size ?? 1), 0.85);
   if (sim.society.life.event?.active && !sim.society.life.event.place) for (const [x, y] of EVENT_BULBS) hole(x, y, 30, 0.7);
   if (town.forge) hole(town.forge.x, town.forge.y + 10, 60, 0.9);
+  const fire = sim.society.disasters.current("fire");
+  if (fire) { const [rx, ry, rw, rh] = fire.building.rect; hole(rx + rw / 2, ry + rh / 2, 220, 1); }
   for (const a of sim.agents) if (a.visible) hole((a.x + 0.5) * T, (a.y + 0.5) * T, 34, 0.35);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -500,7 +611,7 @@ function drawTag(a) {
   const y = s.y - 30 * cam.zoom - 14;
   ctx.font = "800 11px Nunito, system-ui, sans-serif";
   const soc = sim.society;
-  const icons = (soc.mayor === a.id ? "👑" : "") + (a.candidate ? "📣" : "") + (a.escort ? "🚔" : "") + (a.state === "jailed" ? "⛓️" : "") + (a.working ? "🔨" : "") + (a.hunger > 75 ? "🍞" : "");
+  const icons = (soc.mayor === a.id ? "👑" : "") + (a.candidate ? "📣" : "") + (a.escort ? "🚔" : "") + (a.state === "jailed" ? "⛓️" : "") + (a.working ? "🔨" : "") + (a.hunger > 75 ? "🍞" : "") + (a.sick ? "🤒" : "") + (a.disaster?.action === "help" || a.doing === "fight" ? "🧯" : "");
   const label = a.res.name + (icons ? " " + icons : ""), w = ctx.measureText(label).width + 20;
   ctx.save();
   if (a.hiddenBehind) ctx.globalAlpha = 0.55;
