@@ -119,3 +119,22 @@ export const RIVER = [[4, 4.2], [8, 3.6], [12, 3.4], [16, 2.6], [20, 2.4], [24, 
 export const WATERFALL = { x: 118, y: 40, w: 54, h: 140 };       // pixels
 export const FOUNTAIN_PX = { x: 772, y: 498 };
 export const CHIMNEYS = [[350, 160], [372, 400], [578, 662], [1128, 128], [578, 62], [325, 676], [390, 752], [1205, 666], [1398, 640]];
+
+// Buildings in the picture: pixel rectangle, the place they serve, and a walkable spot by the door.
+export const BUILDINGS = [
+  { name: "the General Store", place: "store", rect: [300, 120, 200, 240], door: [12, 11] },
+  { name: "Town Hall", place: "townhall", rect: [620, 30, 300, 300], door: [24, 11] },
+  { name: "the Library", place: "library", rect: [985, 120, 250, 215], door: [34, 11] },
+  { name: "the Inn", place: "cafe", rect: [285, 385, 230, 225], door: [12, 19] },
+  { name: "the Police station", place: "police", rect: [515, 680, 245, 170], door: [19, 27] },
+  { name: "the Clinic", place: "clinic", rect: [1040, 650, 190, 186], door: [35, 26] },
+  { name: "the Market", place: "market", rect: [950, 395, 380, 215], door: [36, 19] },
+  { name: "the barn", place: "garden", rect: [1380, 40, 150, 160], door: [44, 6] },
+  { name: "the Bakery", place: "bakery", rect: [300, 996, 230, 220], door: [12, 38] },
+  { name: "the School", place: "school", rect: [540, 1030, 190, 186], door: [19, 38] },
+  { name: "the Bank", place: "bank", rect: [820, 1000, 250, 216], door: [29, 38] },
+  { name: "the Post Office", place: "post", rect: [1110, 976, 200, 240], door: [38, 38] },
+  { name: "the Apartments", place: "apartments", rect: [1145, 1668, 230, 220], door: [38, 59] },
+];
+// Riverside walkways that a flood swamps.
+export const FLOOD_ZONE = [[0, 13, 8, 8], [3, 17, 3, 1], [5, 6, 3, 1], [6, 11, 2, 10]];
