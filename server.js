@@ -138,7 +138,7 @@ function talkPrompt(sp, li, b) {
     .join("\n");
   const turnsLeft = Math.max(0, Number(b.maxTurns) - Number(b.turn));
   return `It's ${clip(b.time, 40)}. You're at ${clip(b.place, 60)}, ${clip(b.activity, 80)}.
-You're talking with ${li.name}, ${li.role}.
+${Array.isArray(b.group) && b.group.length > 1 ? `You're chatting in a group with ${list(b.group, 4).map((n) => clip(n, 30)).join(", ")}. Speak to the group, and reply to whoever spoke last.` : `You're talking with ${li.name}, ${li.role}.`}
 
 Your life right now:
 ${clip(b.situation, 2500) || "(nothing special)"}
@@ -221,6 +221,17 @@ What do you do right now? React the way ${r.name} truly would: brave, scared, se
 ${opts}
 
 Reply with JSON only: {"choice": "<option id>", "thought": "<what goes through your head, max 15 words>", "say": "<what you shout or say out loud, max 12 words>"}`;
+  }
+  if (kind === "story") {
+    const events = list(b.events, 10).map((e) => `- ${clip(e, 200)}`).join("\n") || "- (nothing big yet)";
+    return `${situation}
+
+Your life story so far: ${clip(b.story, 800) || "(not written yet)"}
+Big moments recently:
+${events}
+Tonight's diary: ${clip(b.diary, 600)}
+
+Rewrite your life story in Gotham so far, in first person, in at most 80 words, keeping the most important moments and relationships. Output only the story.`;
   }
   if (kind === "diary") {
     return `${situation}
@@ -321,10 +332,10 @@ const server = http.createServer(async (req, res) => {
         return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
       }
       const r = who(b.agentId, b.persona);
-      if (!r || !["plan", "decide", "speech", "vote", "propose", "react", "diary"].includes(b.kind)) return send(res, 400, { error: "bad request" });
+      if (!r || !["plan", "decide", "speech", "vote", "propose", "react", "diary", "story"].includes(b.kind)) return send(res, 400, { error: "bad request" });
       if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
       const raw = await ask(r.model, personaPrompt(r), thinkPrompt(b.kind, r, b), 2000);
-      if (b.kind === "speech" || b.kind === "diary") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
+      if (b.kind === "speech" || b.kind === "diary" || b.kind === "story") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
       const out = parseJson(raw);
       return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
     }
