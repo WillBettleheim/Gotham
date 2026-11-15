@@ -109,8 +109,54 @@ export async function renderStatic(town) {
   const g = ground.getContext("2d");
   g.drawImage(img, 0, 0, W * T, H * T);
   findLights(g, town);
+  buildOcclusion(g, town);
   const canopy = document.createElement("canvas"); canopy.width = 1; canopy.height = 1;
   return { ground, canopy };
+}
+
+// Depth: find what in the picture stands up from the ground (trees, roofs, walls, posts) and
+// where each of those things touches the ground. A resident whose feet are above (north of)
+// that base line is behind it, so those pixels get drawn over them.
+function buildOcclusion(g, town) {
+  const w = W * T, h = H * T;
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  const occ = new Uint8Array(w * h);
+  for (let i = 0, p = 0; p < w * h; p++, i += 4) {
+    const r = d[i], gg = d[i + 1], b = d[i + 2];
+    const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), lum = (r * 3 + gg * 6 + b) / 10;
+    const grass = gg > r + 5 && gg > b + 40 && lum > 105;
+    const cobble = mx - mn < 40 && lum > 120 && lum < 225;
+    const dirt = r > gg && gg > b && r - b > 45 && r - gg < 60 && lum > 120 && lum < 215;
+    const water = b > r + 30 && b > gg - 10 && b > 140 && gg > 90;
+    occ[p] = grass || cobble || dirt || water ? 0 : 1;
+    if (occ[p]) {
+      // on walkable ground only overhanging leaves count; dark mortar and shadows don't
+      const x = p % w, y = (p / w) | 0;
+      const leaf = gg >= r && gg > b + 15 && lum < 120;
+      if (town.walkable(Math.floor(x / T), Math.floor(y / T)) && !leaf) occ[p] = 0;
+    }
+  }
+  // close small vertical gaps (light leaves, window glints) so a tree or roof stays one piece
+  for (let x = 0; x < w; x++) {
+    let last = -99;
+    for (let y = 0; y < h; y++) {
+      if (occ[y * w + x]) { if (y - last > 1 && y - last <= 5 && last >= 0) for (let k = last + 1; k < y; k++) occ[k * w + x] = 1; last = y; }
+    }
+  }
+  // base line: bottom of each vertical run; only keep runs that stand on unwalkable ground
+  const base = new Uint16Array(w * h);
+  for (let x = 0; x < w; x++) {
+    let y = h - 1;
+    while (y >= 0) {
+      if (!occ[y * w + x]) { y--; continue; }
+      const bottom = y;
+      while (y >= 0 && occ[y * w + x]) y--;
+      const tile = town.get(Math.floor(x / T), Math.floor(bottom / T));
+      const solid = !(tile === TILE.PATH || tile === TILE.GRASS || tile === TILE.DIRT || tile === TILE.BRIDGE || tile === TILE.DOCK || tile === TILE.PLOT || tile === TILE.FIELD);
+      if (solid && bottom - y > 3) for (let k = y + 1; k <= bottom; k++) base[k * w + x] = bottom;
+    }
+  }
+  town.occlusion = { w, h, base, rgba: d };
 }
 
 // Windows and lamps in the picture are warm yellow; find them so they glow at night.
