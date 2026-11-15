@@ -74,29 +74,88 @@ addEventListener("resize", resize);
 resize();
 cam.x = town.fountain.x - vw / cam.zoom / 2; cam.y = town.fountain.y - vh / cam.zoom / 2; clampCam();
 
-let drag = null;
-canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0 }; canvas.setPointerCapture(e.pointerId); });
+// ---------- touch & mouse: drag to pan, pinch or scroll to zoom, double-tap to zoom in/out ----------
+const pointers = new Map();
+let drag = null, pinch = null, lastTap = null, zoomAnim = null;
+const minZoomNow = () => Math.max(vw / (W * T), vh / (H * T));
+function zoomTo(target, mx, my, ms = 320) {
+  ui.follow = false;
+  zoomAnim = { from: cam.zoom, to: Math.max(minZoomNow(), Math.min(3, target)), wx: cam.x + mx / cam.zoom, wy: cam.y + my / cam.zoom, mx, my, t0: performance.now(), ms };
+}
+function stepZoomAnim(now) {
+  if (!zoomAnim) return;
+  const z = zoomAnim, p = Math.min(1, (now - z.t0) / z.ms), e = 1 - Math.pow(1 - p, 3);
+  cam.zoom = z.from + (z.to - z.from) * e;
+  cam.x = z.wx - z.mx / cam.zoom; cam.y = z.wy - z.my / cam.zoom;
+  clampCam();
+  if (p >= 1) zoomAnim = null;
+}
+const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, local(e));
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: 0 };
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: cam.zoom, wx: cam.x + mid.x / cam.zoom, wy: cam.y + mid.y / cam.zoom };
+    drag = null; zoomAnim = null; ui.follow = false;
+  }
+});
 canvas.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, local(e));
+  if (pinch && pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    cam.zoom = pinch.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
+    clampCam();
+    cam.x = pinch.wx - mid.x / cam.zoom; cam.y = pinch.wy - mid.y / cam.zoom;
+    clampCam();
+    return;
+  }
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
-  if (drag.moved > 4) { if (ui.follow) { ui.follow = false; ui.refreshCard(); } canvas.classList.add("dragging"); cam.x = drag.cx - dx / cam.zoom; cam.y = drag.cy - dy / cam.zoom; clampCam(); }
+  if (drag.moved > 4) { if (ui.follow) { ui.follow = false; ui.refreshCard(); } zoomAnim = null; canvas.classList.add("dragging"); cam.x = drag.cx - dx / cam.zoom; cam.y = drag.cy - dy / cam.zoom; clampCam(); }
 });
-canvas.addEventListener("pointerup", (e) => {
+function endPointer(e) {
+  const p = pointers.get(e.pointerId);
+  pointers.delete(e.pointerId);
   canvas.classList.remove("dragging");
-  if (drag && drag.moved <= 4) {
-    const r = canvas.getBoundingClientRect();
-    const wx = cam.x + (e.clientX - r.left) / cam.zoom, wy = cam.y + (e.clientY - r.top) / cam.zoom;
-    let best = null, bd = 22;
-    for (const a of sim.agents) {
-      if (!a.visible) continue;
-      const d = Math.hypot((a.x + 0.5) * T - wx, (a.y + 0.5) * T - wy);
-      if (d < bd) { bd = d; best = a; }
+  if (pinch) { if (pointers.size < 2) { pinch = null; drag = null; } return; }
+  if (e.type === "pointerup" && drag && drag.moved <= 4 && p) {
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 330 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 36) {
+      // double tap: zoom in on that spot, or back out if already zoomed in
+      const zoomedIn = cam.zoom > minZoomNow() * 1.9 || cam.zoom >= 2.6;
+      zoomTo(zoomedIn ? minZoomNow() : cam.zoom * 2.2, p.x, p.y);
+      lastTap = null;
+    } else {
+      lastTap = { t: now, x: p.x, y: p.y };
+      const wx = cam.x + p.x / cam.zoom, wy = cam.y + p.y / cam.zoom;
+      let best = null, bd = 22;
+      for (const a of sim.agents) {
+        if (!a.visible) continue;
+        const d = Math.hypot((a.x + 0.5) * T - wx, (a.y + 0.5) * T - wy);
+        if (d < bd) { bd = d; best = a; }
+      }
+      ui.select(best);
     }
-    ui.select(best);
   }
   drag = null;
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("dblclick", (e) => e.preventDefault());
+$("zoomIn").onclick = () => zoomTo(cam.zoom * 1.6, vw / 2, vh / 2);
+$("zoomOut").onclick = () => zoomTo(cam.zoom / 1.6, vw / 2, vh / 2);
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+  if (e.key === "+" || e.key === "=") zoomTo(cam.zoom * 1.6, vw / 2, vh / 2);
+  if (e.key === "-" || e.key === "_") zoomTo(cam.zoom / 1.6, vw / 2, vh / 2);
 });
+
 // ---------- minimap ----------
 const mini = $("mini"), mctx = mini.getContext("2d");
 mini.width = 264; mini.height = 352;
@@ -171,8 +230,9 @@ function frame(now) {
   last = now;
   const t = now / 1000;
 
+  stepZoomAnim(now);
   const selected = ui.selected;
-  if (ui.follow && selected) {
+  if (ui.follow && selected && !zoomAnim) {
     const tx = (selected.x + 0.5) * T - vw / cam.zoom / 2, ty = (selected.y + 0.5) * T - vh / cam.zoom / 2;
     cam.x += (tx - cam.x) * Math.min(1, dt * 4); cam.y += (ty - cam.y) * Math.min(1, dt * 4); clampCam();
   }

@@ -29,6 +29,9 @@
         <button data-speed="2">2×</button>
         <button data-speed="5">5×</button>
         <button data-speed="15">15×</button>
+        <span class="sep"></span>
+        <button id="zoomOut" title="Zoom out (−)">−</button>
+        <button id="zoomIn" title="Zoom in (+)">+</button>
       </div>
       <div class="ticker" id="ticker">
         <span class="chip glass" title="Town treasury">🏦 <b id="tTreasury">200</b></span>
@@ -40,7 +43,7 @@
     </div>
     <div id="minimap" class="glass" title="Click to jump there"><canvas id="mini"></canvas></div>
     <div id="toasts"></div>
-    <div id="hint">Drag to pan · scroll to zoom · click a resident</div>
+    <div id="hint">Drag to pan · double-tap or scroll to zoom · click a resident</div>
     <div id="card" hidden></div>
   </main>
 
