@@ -50,6 +50,7 @@ export class Disasters {
     this.active.push(d);
     this.log(def.icon, type === "fire" ? `FIRE! ${cap(d.building.name)} is burning!` : `${def.name}! ${def.desc}.`, "disaster", true);
     this.immediate(d);
+    this.society.riverton?.onDisaster(d);
     // the mayor responds
     const mayor = this.society.mayorAgent();
     if (mayor) setTimeout(() => this.log("📢", `Mayor ${mayor.res.name}: "${pick(["Everyone stay calm and help each other!", "Gotham will get through this together!", "Stay safe, and help your neighbors if you can."])}"`, "disaster"), 1500);

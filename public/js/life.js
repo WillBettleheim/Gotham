@@ -139,6 +139,10 @@ export class Life {
     };
     const clinic = world.clinicOption(a); if (clinic && !dis.closed("clinic")) opts.push(clinic);
     const rebuild = dis.rebuildOption(a); if (rebuild) opts.push(rebuild);
+    const s2 = this.society;
+    const gathering = s2.civic.gatheringOption(a); if (gathering) opts.push(gathering);
+    for (const o of s2.construction.options(a)) opts.push(o);
+    if (Math.random() < 0.25 && world.w.outdoor > 0.5 && !dis.active.length) { const trip = s2.riverton.travelOption(a); if (trip) opts.push(trip); }
     // bad weather sends people indoors
     if (world.w.outdoor < 0.6) add("socialize", 25, "cafe", "heading indoors to the Inn");
     if (a.partner) { const p = this.sim.agents.find((o) => o.id === a.partner); if (p && p.state !== "sleeping" && p.place && p.place !== "home" && p.place !== "jail") add("socialize", 20 + (100 - a.social) * 0.4, p.place, `going to meet ${p.res.name}`); }

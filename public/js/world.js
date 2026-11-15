@@ -72,7 +72,8 @@ export class World {
   // see the doctor
   clinicOption(a) {
     if (!a.sick && a.health > 50) return null;
-    return { kind: "clinic", score: 70 + (60 - a.health), place: "clinic", label: "going to see the doctor" };
+    const place = this.society.construction?.clinicPlace() ?? "clinic";
+    return { kind: "clinic", score: 70 + (60 - a.health), place, label: place === "hospital" ? "going to the Hospital" : "going to see the doctor" };
   }
   onArrive(a) {
     if (a.doing === "clinic" && a.place === "clinic") {

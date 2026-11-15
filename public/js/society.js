@@ -8,6 +8,9 @@ import { Social } from "./social.js";
 import { World } from "./world.js";
 import { Disasters } from "./disasters.js";
 import { Stats } from "./stats.js";
+import { Civic } from "./civic.js";
+import { Construction } from "./construction.js";
+import { Riverton } from "./riverton.js";
 
 export const FOOD_PRICE = 8;
 const RENT = 15;
@@ -47,6 +50,9 @@ export class Society {
     this.world = new World(this);
     this.disasters = new Disasters(this);
     this.stats = new Stats(this);
+    this.civic = new Civic(this);
+    this.construction = new Construction(this);
+    this.riverton = new Riverton(this);
     personaFor = (id) => { const a = sim.agents.find((x) => x.id === id); return a ? sim.personaOf(a) : undefined; };
     this.addLaw({ type: "theft" }, "founding charter", true);
     this.addLaw({ type: "tax", param: 10 }, "founding charter", true);
@@ -114,6 +120,7 @@ export class Society {
     this.lastHour = h;
 
     for (const a of sim.agents) {
+      if (a.state === "away") { this.riverton.tick(a); continue; }
       a.hunger = clamp(a.hunger + dt * (a.state === "sleeping" ? 1.6 : 3.6) / 60);
       this.life.tick(a, dt);
       this.world.tick(a, dt);
@@ -158,6 +165,7 @@ export class Society {
     }
 
     this.world.update(dt);
+    this.construction.update(dt);
     this.disasters.update(dt);
     // elections
     const e = this.election;
@@ -190,6 +198,8 @@ export class Society {
     this.life.onHour(h);
     this.autonomy.checkGoals();
     this.stats.onHour();
+    this.civic.onHour(h);
+    this.riverton.onHour(h);
     if (h === 0) this.newDay();
   }
 
@@ -221,6 +231,8 @@ export class Society {
     }
     this.population.onNewDay();
     this.world.onNewDay();
+    this.civic.onNewDay();
+    this.riverton.onNewDay();
     const st = this.population.stats();
     this.log("🌅", `A new day in Gotham. Population ${st.population}, ${st.unemployed} unemployed, ${st.openJobs} open jobs. Treasury: ${Math.round(this.treasury)} coins.`, "economy");
     sim.save();
@@ -280,6 +292,9 @@ export class Society {
     if (["cafe", "store", "bakery"].includes(a.place) && a.hunger > 45) this.eat(a);
     this.autonomy.onArrive(a);
     this.world.onArrive(a);
+    this.civic.onArrive(a);
+    this.construction.onArrive(a);
+    this.riverton.onArrive(a);
     this.life.onArrive(a);
     if (a.candidate && this.election.phase === "rally" && a.place === "plaza" && a.speech) {
       a.bubble = { text: a.speech, until: this.sim.realTime + 14, born: this.sim.realTime, speech: true };
@@ -592,12 +607,13 @@ export class Society {
     if (!p) return;
     this.proposals = this.proposals.filter((x) => x.id !== id);
     const mayor = residentById(p.by)?.name ?? "the mayor";
+    const label = p.petition ? `petition by ${mayor}` : `proposed by Mayor ${mayor}`;
     if (accept) {
-      if (p.action === "repeal") this.repeal(p.lawId, `proposed by Mayor ${mayor}`);
-      else this.addLaw({ type: p.type, param: p.param, text: p.text }, `proposed by Mayor ${mayor}`);
+      if (p.action === "repeal") this.repeal(p.lawId, label);
+      else this.addLaw({ type: p.type, param: p.param, text: p.text }, label);
       const m = this.mayorAgent(); if (m) m.mood = clamp(m.mood + 8);
     } else {
-      this.log("✋", `You rejected Mayor ${mayor}'s proposal: ${p.summary}`, "law");
+      this.log("✋", p.petition ? `You rejected ${mayor}'s petition: ${p.summary}` : `You rejected Mayor ${mayor}'s proposal: ${p.summary}`, "law");
       const m = this.mayorAgent(); if (m) { m.mood = clamp(m.mood - 6); m.memories.push({ about: m.id, text: `The council rejected my proposal: ${p.summary}`, time: hhmm(this.sim.time) }); }
     }
     this.emit("laws");
@@ -629,6 +645,8 @@ export class Society {
       this.world.situation(),
       this.social.situation(a),
       this.disasters.situation(),
+      this.civic.situation(a),
+      this.riverton.situation(),
       a.sick ? "You're sick with a fever." : a.health < 50 ? "You're feeling a bit unwell." : "",
       a.plan?.wishes?.length ? `What you wanted to do today: ${a.plan.wishes.map((w) => ACTIVITIES[w]?.label ?? w).join("; ")}.` : "",
     ].filter(Boolean).join("\n");
@@ -648,6 +666,9 @@ export class Society {
       world: this.world.serialize(),
       disasters: this.disasters.serialize(),
       stats: this.stats.serialize(),
+      civic: this.civic.serialize(),
+      construction: this.construction.serialize(),
+      riverton: this.riverton.serialize(),
     };
   }
   restore(s) {
@@ -661,6 +682,9 @@ export class Society {
     this.world.restore(s.world);
     this.disasters.restore(s.disasters);
     this.stats.restore(s.stats);
+    this.civic.restore(s.civic);
+    this.construction.restore(s.construction);
+    this.riverton.restore(s.riverton);
     if (s.election) { this.election.nextAt = s.election.nextAt ?? this.election.nextAt; this.election.history = s.election.history ?? []; }
     for (const a of this.sim.agents) if (s.agents?.[a.id]) Object.assign(a, s.agents[a.id]);
   }
