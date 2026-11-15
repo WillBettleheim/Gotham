@@ -59,7 +59,7 @@ Free model names change often, so every model can be overridden in `.env` (see `
 
 ## The town
 
-Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, the Police station, Clinic, the farm with its barn and windmill, and the Jail in the south-east clearing.
+Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Trees, roofs, walls, lamp posts and the fountain are detected in the picture with their ground lines, so residents walking behind them are hidden like in a real 2D game (their name tags fade). Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, the Police station, Clinic, the farm with its barn and windmill, and the Jail in the south-east clearing.
 
 There are fishing docks at the waterfall pond and on the river beside the west road.
 
