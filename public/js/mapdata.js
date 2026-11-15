@@ -30,6 +30,9 @@ export const RECTS = {
     [8, 38, 2, 23],   // west lane
     [43, 38, 2, 23],  // east lane
     [8, 59, 37, 2],   // Garden Lane
+    [0, 47, 8, 2],    // Cottage Row west, to building lot A
+    [0, 59, 8, 2],    // Garden Lane west, to building lot B
+    [45, 59, 3, 2],   // the road east to Riverton
   ],
   BRIDGE: [[2, 13, 4, 3]],
   DIRT: [
@@ -138,3 +141,11 @@ export const BUILDINGS = [
 ];
 // Riverside walkways that a flood swamps.
 export const FLOOD_ZONE = [[0, 13, 8, 8], [3, 17, 3, 1], [5, 6, 3, 1], [6, 11, 2, 10]];
+
+// Building lots the council can build on (pixel rect of the cleared ground, door tile on the road).
+export const LOTS = [
+  { id: "A", name: "the Cottage Row lot", rect: [4, 1296, 250, 206], door: [4, 47] },
+  { id: "B", name: "the Garden Lane lot", rect: [4, 1592, 250, 294], door: [4, 59] },
+];
+// Where the road leaves town for Riverton.
+export const RIVERTON_EXIT = { x: 47, y: 59 };
