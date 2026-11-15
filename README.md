@@ -88,7 +88,8 @@ Every resident is free to do what they want, and every choice has consequences.
 
 ## Controls
 
-- Drag to pan, scroll to zoom
+- Drag to pan; scroll, pinch, the −/+ buttons or the −/+ keys to zoom
+- Double-tap (or double-click) the map to zoom in on that spot, and again to zoom back out
 - Click a resident (on the map or in the sidebar) to see their money, mood, reputation, today's plan, criminal record, friends and memories, and to follow them
 - The minimap (bottom right) shows everyone; click it to jump there
 - Space pauses; ½× to 15× changes speed (at 1×, one game minute takes 2 real seconds, so a day lasts about 48 minutes)
