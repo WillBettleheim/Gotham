@@ -1,7 +1,8 @@
 {
   "name": "ai-town",
   "version": "0.1.0",
-  "description": "A cozy 2D town where AI characters (different Claude models) live, wander and chat with each other.",
+  "description": "A 2D pixel-art town where AI residents from different labs live, work, chat, vote and build together.",
+  "author": "WillBettleheim",
   "type": "module",
   "private": true,
   "scripts": {
