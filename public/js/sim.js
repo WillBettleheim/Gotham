@@ -176,19 +176,18 @@ export class Sim {
     const hangout = COMMUNITIES[a.community]?.hangout;
     if (a.gatherUntil > this.time && hangout && a.place !== hangout) return this.goTo(a, hangout, `meeting the ${COMMUNITIES[a.community].name}`);
     if (a.candidate && s.election.phase === "rally" && a.place !== "plaza") return this.goTo(a, "plaza", "heading to the campaign rally");
-    if (a.hunger > 55 && a.place !== "cafe") return this.goTo(a, "cafe", a.coins >= 8 ? "going to get food" : "hungry, heading to the Inn");
+    const go = (o) => { a.doing = o.kind; a.doingPlace = o.place; return this.goTo(a, o.place, o.label ?? undefined); };
+    // very hungry residents eat before anything else
+    if (a.hunger > 70) { const e = s.life.options(a).find((o) => o.kind === "eat"); if (e && a.place !== e.place) return go(e); }
     const onShift = r.work && inRange(h, r.work.from, r.work.to);
-    if (onShift && a.plan?.work !== false && (a.place !== r.work.place || Math.random() < 0.85)) return this.goTo(a, r.work.place, `going to work (${r.job})`);
-    const entries = Object.entries(r.weights)
-      .filter(([p]) => p !== a.place || Math.random() < 0.3)
-      .filter(([p]) => p !== "garden" || r.work?.place === "garden" || !s.law("garden") || s.defies(a, "garden"));
-    if (s.election.phase === "rally") entries.push(["plaza", 6]);
-    if (h >= 20 && !a.plan?.lateNight && Math.random() < 0.4) entries.push(["home", 4]);
-    if (!entries.length) entries.push(["plaza", 1]);
-    const total = entries.reduce((sum, [, w]) => sum + w, 0);
-    let x = Math.random() * total;
-    for (const [p, w] of entries) { if ((x -= w) <= 0) return this.goTo(a, p); }
-    this.goTo(a, entries[0][0]);
+    if (onShift && a.plan?.work !== false && (a.place !== r.work.place || Math.random() < 0.85)) return go({ kind: "work", place: r.work.place, label: `going to work (${r.job})` });
+    if (h >= 21 && !a.plan?.lateNight && Math.random() < 0.4) return go({ kind: "home", place: "home", label: "heading home for the evening" });
+    // free time: residents choose for themselves, from their needs, tastes and wishes for the day
+    let o = s.life.choose(a);
+    if (o?.place === "garden" && r.work?.place !== "garden" && s.law("garden") && !s.defies(a, "garden")) o = null;
+    if (o?.kind === "hangout" && o.place === a.place && Math.random() < 0.7) o = null;
+    if (s.election.phase === "rally" && Math.random() < 0.35) o = { kind: "hangout", place: "plaza", label: "going to watch the campaign rally" };
+    return go(o ?? { kind: "stroll", place: "plaza" });
   }
 
   goTo(a, place, label) {
@@ -222,9 +221,19 @@ export class Sim {
     a.place = a.destPlace ?? a.place;
     a.state = "idle";
     const onShift = a.res.work && a.place === a.res.work.place && inRange(this.hour, a.res.work.from, a.res.work.to) && a.plan?.work !== false;
-    a.activity = onShift ? `working as ${a.res.job.toLowerCase()}` : pickAct(a.place, a);
-    a.dwellUntil = this.time + (onShift ? rand(60, 120) : a.place === "home" ? rand(30, 70) : rand(45, 130));
+    const pursuing = !onShift && a.doing && a.place === a.doingPlace;
+    a.activity = onShift ? `working as ${a.res.job.toLowerCase()}` : (pursuing && this.society.life.activityLabel(a)) || pickAct(a.place, a);
+    const ev = this.society.life.event;
+    a.dwellUntil = this.time + (onShift ? rand(60, 120)
+      : pursuing && a.doing === "event" && ev?.active ? Math.max(30, ev.end - this.time)
+      : pursuing && ["fish", "garden"].includes(a.doing) ? rand(60, 150)
+      : pursuing && a.doing === "nap" ? rand(60, 120)
+      : a.place === "home" ? rand(30, 70) : rand(45, 130));
     a.facing = "down";
+    if (a.place === "fishing") { // face the water
+      const t = this.town.get(Math.round(a.x), Math.round(a.y));
+      a.facing = t === 14 ? "left" : Math.round(a.y) <= 13 ? "up" : "down";
+    }
     this.society.onArrive(a);
   }
 
