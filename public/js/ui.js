@@ -13,6 +13,7 @@ const hhmm = (min) => `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}
 export function createUI() {
   let sim = null, society = null;
   let selected = null, follow = false, tab = "live", gazetteFilter = "all";
+  let cardCollapsed = matchMedia("(max-width: 860px)").matches; // small screens start with a compact card
   let calls = 0;
   const feed = $("feed");
 
@@ -144,7 +145,21 @@ export function createUI() {
     if (a.plan?.defy?.length) s += "😈";
     return s;
   }
+  let resQuery = "", resSort = "name";
+  $("resSearch").oninput = (e) => { resQuery = e.target.value.trim().toLowerCase(); renderResidents(); };
+  $("resSort").onchange = (e) => { resSort = e.target.value; renderResidents(); };
   function renderResidents() {
+    const goalPct = (a) => (a.goal ? Math.min(1, society.autonomy.goalProgress(a) / a.goal.target) : -1);
+    const key = { name: (a) => a.res.name, coins: (a) => -a.coins, mood: (a) => -a.mood, rep: (a) => -a.rep, goal: (a) => -goalPct(a), model: (a) => a.res.model + a.res.name }[resSort];
+    const ordered = [...sim.agents].sort((x, y) => { const kx = key(x), ky = key(y); return kx < ky ? -1 : kx > ky ? 1 : 0; });
+    const box = $("residents");
+    ordered.forEach((a, i) => {
+      const e = resEls[a.id];
+      if (!e) return;
+      const text = `${a.res.name} ${a.res.job} ${MODELS[a.res.model].label}`.toLowerCase();
+      e.b.hidden = !!resQuery && !text.includes(resQuery);
+      if (box.children[i] !== e.b) box.insertBefore(e.b, box.children[i] ?? null);
+    });
     for (const a of sim.agents) {
       const e = resEls[a.id];
       if (!e) continue;
@@ -434,8 +449,11 @@ export function createUI() {
       a.debt ? `<span class="tag bad">🏚️ debt ${Math.ceil(a.debt)}</span>` : "",
     ].join("") || `<span class="tag good">✨ clean record</span>`;
     const w = a.res.work;
+    card.style.setProperty("--mc", m.color);
+    card.classList.toggle("collapsed", cardCollapsed);
     card.innerHTML = `
       <button class="close" title="Close">✕</button>
+      <button class="min" title="${cardCollapsed ? "Expand" : "Collapse"}">${cardCollapsed ? "▴" : "▾"}</button>
       <div class="top"><canvas class="portrait" width="136" height="136"></canvas>
         <div><h3>${esc(a.res.name)}</h3><span class="badge" style="background:${m.color}22;color:${m.color}">${m.label}</span>
         <span class="role" style="font-size:11px">${sim.liveModels[a.res.model] ? "● live" : "○ offline chatter"}</span>
@@ -453,6 +471,7 @@ export function createUI() {
       <div class="row"><button class="follow ${follow ? "on" : ""}">${follow ? "Following" : "Follow"}</button></div>`;
     drawPortrait(card.querySelector("canvas"), a.res);
     card.querySelector(".close").onclick = () => ui.select(null);
+    card.querySelector(".min").onclick = () => { cardCollapsed = !cardCollapsed; renderCard(); };
     card.querySelector(".follow").onclick = () => { follow = !follow; renderCard(); };
     card.hidden = false;
     updateCardLive();
