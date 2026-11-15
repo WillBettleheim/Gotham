@@ -80,6 +80,23 @@ test("immigration policy and housing", async () => {
   assert.ok(sim.agents.length <= pop.capacity(), "never more residents than homes");
 });
 
+test("laws ignore bad input from models or the form", () => {
+  const sim = makeSim();
+  const s = sim.society;
+  const n = s.laws.length;
+  s.addLaw({ type: "constructor" });
+  s.addLaw({ type: "custom", text: "   " });
+  assert.equal(s.laws.length, n, "unknown types and empty custom laws are ignored");
+  s.addLaw({ type: "tax", param: 500 });
+  assert.equal(s.law("tax").param, 50, "tax is capped");
+  s.addLaw({ type: "curfew", param: 99 });
+  assert.equal(s.law("curfew").param, 23, "a nonsense hour falls back to the default");
+  s.addLaw({ type: "curfew", param: 1 });
+  assert.equal(s.law("curfew").param, 1, "after-midnight curfews are allowed");
+  s.addLaw({ type: "custom", text: "x".repeat(5000) });
+  assert.ok(s.laws.at(-1).text.length <= 200, "custom law text is clipped");
+});
+
 test("projects and lots are consistent", () => {
   for (const [id, p] of Object.entries(PROJECTS)) {
     assert.ok(p.cost > 0 && p.hours > 0, `${id} has a cost and build time`);
