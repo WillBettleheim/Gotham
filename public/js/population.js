@@ -1,5 +1,6 @@
 // Jobs, housing and population: newcomers move in, workers get hired and fired, unhappy residents move away.
 import { MODELS, COMMUNITIES, registerResident, unregisterResident } from "./residents.js";
+import { RIVERTON_EXIT } from "./mapdata.js";
 
 // Every workplace in town, its job, pay, hours and how many people it employs.
 export const WORKPLACES = {
@@ -169,7 +170,7 @@ export class Population {
     };
     if (job) { res.work = { place: job.place, from: job.from, to: job.to, wage: job.wage }; res.job = job.title; res.weights[job.place] = 3; }
     const a = this.sim.addResident(res, true);
-    a.x = 23; a.y = 46; // arrives through South Gotham
+    a.x = RIVERTON_EXIT.x; a.y = RIVERTON_EXIT.y; // newcomers arrive along the east road
     if (this.grant && this.society.treasury >= this.grant) { this.society.treasury -= this.grant; a.coins += this.grant; }
     this.arrivals++;
     this.society.log("🧳", `${name} (${MODELS[model].label}) moved into ${this.homes()[home].name}${job ? ` to work as ${job.title} at ${placeLabel(job.place)}` : " and is looking for work"}.`, "community", true, a.id);
