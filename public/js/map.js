@@ -129,11 +129,10 @@ function buildOcclusion(g, town) {
     const dirt = r > gg && gg > b && r - b > 45 && r - gg < 60 && lum > 120 && lum < 215;
     const water = b > r + 30 && b > gg - 10 && b > 140 && gg > 90;
     occ[p] = grass || cobble || dirt || water ? 0 : 1;
-    if (occ[p]) {
-      // on walkable ground only overhanging leaves count; dark mortar and shadows don't
+    // dark mortar between cobblestones isn't an object
+    if (occ[p] && mx - mn < 30 && lum < 125 && lum > 60) {
       const x = p % w, y = (p / w) | 0;
-      const leaf = gg >= r && gg > b + 15 && lum < 120;
-      if (town.walkable(Math.floor(x / T), Math.floor(y / T)) && !leaf) occ[p] = 0;
+      if (town.walkable(Math.floor(x / T), Math.floor(y / T))) occ[p] = 0;
     }
   }
   // close small vertical gaps (light leaves, window glints) so a tree or roof stays one piece
