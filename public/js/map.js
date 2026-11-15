@@ -4,12 +4,12 @@ import { IMAGE, RECTS, HOMES, DOORS, PLACE_AREAS, RIVER, WATERFALL, FOUNTAIN_PX,
 
 export const T = 32;
 export const W = 48;
-export const H = 52;
+export const H = 64;
 export const TILE = {
   BLOCKED: 0, PATH: 1, WATER: 2, BUILDING: 3, GRASS: 4, PLAZA: 5, FIELD: 6, FENCE: 7,
-  FOUNTAIN: 8, YARD: 9, DIRT: 10, BRIDGE: 11, BLOCK: 12, JAIL: 13,
+  FOUNTAIN: 8, YARD: 9, DIRT: 10, BRIDGE: 11, BLOCK: 12, JAIL: 13, DOCK: 14, PLOT: 15,
 };
-const WALKABLE = new Set([TILE.PATH, TILE.GRASS, TILE.FIELD, TILE.DIRT, TILE.BRIDGE]);
+const WALKABLE = new Set([TILE.PATH, TILE.GRASS, TILE.FIELD, TILE.DIRT, TILE.BRIDGE, TILE.DOCK, TILE.PLOT]);
 
 export function mulberry32(a) {
   return function () {

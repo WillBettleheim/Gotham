@@ -1,5 +1,6 @@
-// Layout traced from the town picture (public/assets/town.webp, 1536x1664 = 48x52 tiles of 32px).
-// The top 32 rows are the original picture; South Gotham (rows 32-51) was built from pieces of it.
+// Layout traced from the town picture (public/assets/town.webp, 1536x2048 = 48x64 tiles of 32px).
+// The top 32 rows are the original picture; South Gotham (rows 32-48) and the Garden District (rows 49-60)
+// were built from pieces of it.
 // Rects are [x, y, w, h] in tiles. Later rects override earlier ones.
 
 export const IMAGE = "assets/town.webp";
@@ -26,8 +27,9 @@ export const RECTS = {
     [23, 32, 2, 8],   // avenue from the gate
     [8, 38, 37, 2],   // High Street (bakery, school, bank, post office)
     [8, 47, 37, 2],   // Cottage Row
-    [8, 38, 2, 11],   // west lane
-    [43, 38, 2, 11],  // east lane
+    [8, 38, 2, 23],   // west lane
+    [43, 38, 2, 23],  // east lane
+    [8, 59, 37, 2],   // Garden Lane
   ],
   BRIDGE: [[2, 13, 4, 3]],
   DIRT: [
@@ -38,12 +40,20 @@ export const RECTS = {
     [42, 25, 6, 1],   // path to the red cottage
     [42, 13, 5, 3],   // notice board green
     [23, 28, 2, 4],   // through the south gate
+    [7, 7, 1, 4],     // path from the north road to the pond dock
+    [29, 54, 7, 1], [29, 58, 7, 1], // Citizens' Market aisles
     [44, 24, 1, 1], [42, 28, 1, 3], [43, 30, 3, 1], // red cottage gate, jail path
   ],
   GRASS: [
     [20, 13, 3, 3], [25, 13, 3, 3], [20, 16, 3, 3], [25, 16, 3, 3], // plaza gardens
     [10, 21, 1, 6], [8, 24, 2, 1], [11, 26, 1, 1], // garden path between the two cottages
+    [10, 49, 33, 1],  // verge between Cottage Row and the Garden District
+    [23, 50, 5, 8],   // event lawn and stage in the Community Garden
+    [21, 49, 3, 1], [21, 58, 3, 1], // garden gates
+    [28, 50, 1, 9],   // path between the garden and the market
   ],
+  PLOT: [[16, 50, 7, 8]],   // Community Garden plots
+  DOCK: [[5, 6, 3, 1], [3, 17, 3, 1]], // fishing docks: waterfall pond, river
   FIELD: [[41, 7, 7, 4]],
   FOUNTAIN: [[22, 15, 4, 2], [23, 14, 2, 4]],
   BLOCK: [[35, 13, 4, 3], [32, 15, 3, 3]], // market stalls
@@ -66,13 +76,15 @@ export const HOMES = [
   { x: 39, y: 5, name: "the windmill" },                   // 10 dex
   { x: 44, y: 24, name: "the red cottage by the farm" },   // 11 lola
   { x: 13, y: 18, name: "the Inn (rented room)" },         // 12 mira
-  // South Gotham's Cottage Row: room for newcomers
+  // South Gotham's Cottage Row and the Garden District: room for newcomers
   { x: 13, y: 47, name: "1 Cottage Row", capacity: 2 },
   { x: 18, y: 47, name: "2 Cottage Row", capacity: 2 },
   { x: 23, y: 47, name: "3 Cottage Row", capacity: 2 },
   { x: 29, y: 47, name: "4 Cottage Row", capacity: 2 },
   { x: 33, y: 47, name: "5 Cottage Row", capacity: 2 },
   { x: 39, y: 47, name: "6 Cottage Row", capacity: 2 },
+  { x: 12, y: 59, name: "7 Garden Lane", capacity: 2 },
+  { x: 38, y: 59, name: "the Apartments", capacity: 8 },
 ];
 
 // Building doors used by the simulation.
@@ -94,6 +106,10 @@ export const PLACE_AREAS = {
   garden: [[41, 7, 7, 4]],
   clinic: [[33, 25, 5, 3]],
   jailyard: [[46, 30, 2, 2]],
+  fishing: [[5, 6, 3, 1], [3, 17, 3, 1], [2, 13, 4, 1], [2, 15, 4, 1]], // docks and the bridge rails
+  cgarden: [[16, 50, 7, 8]],      // Community Garden plots
+  events: [[23, 50, 5, 8]],       // Community Garden lawn and stage
+  cmarket: [[29, 54, 7, 1], [29, 58, 7, 1]],
   bakery: [[10, 38, 5, 2]],
   school: [[17, 38, 5, 2]],
   bank: [[27, 38, 5, 2]],
