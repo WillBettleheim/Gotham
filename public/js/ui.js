@@ -107,6 +107,13 @@ export function createUI() {
     $("tTreasury").textContent = Math.round(society.treasury);
     $("tMayor").textContent = mayor ? mayor.res.name : "no mayor";
     $("tJail").textContent = sim.agents.filter((a) => a.state === "jailed").length;
+    $("tPop").textContent = sim.agents.length;
+    const ev = society.life.event, chip = $("tEvent");
+    if (ev && sim.time < ev.end) {
+      const at = `${String(Math.floor((ev.start % 1440) / 60)).padStart(2, "0")}:${String(ev.start % 60).padStart(2, "0")}`;
+      chip.hidden = false;
+      chip.innerHTML = `${ev.icon} <b>${esc(ev.name)}</b> ${ev.active ? "· now" : `· ${at}`}`;
+    } else chip.hidden = true;
   }
 
   // ----- town tab -----
@@ -118,7 +125,7 @@ export function createUI() {
       b.className = "res" + (isNew ? " new" : ""); b.dataset.id = a.id;
       b.append(portrait(a.res, 76));
       const info = document.createElement("div");
-      info.innerHTML = `<div class="n"><i style="background:${MODELS[a.res.model].color}"></i>${esc(a.res.name)} <small>${esc(a.res.job)}</small></div><div class="a"></div><div class="mini"></div>`;
+      info.innerHTML = `<div class="n"><i style="background:${MODELS[a.res.model].color}"></i>${esc(a.res.name)} <small>${esc(a.res.job)}</small></div><div class="a"></div><div class="goalline"></div><div class="mini"></div>`;
       const money = document.createElement("div");
       money.className = "money";
       b.append(info, money);
@@ -143,6 +150,9 @@ export function createUI() {
       if (!e) continue;
       e.act.textContent = a.activity;
       e.job.textContent = a.res.job;
+      const gl = e.b.querySelector(".goalline");
+      const goalText = a.goal ? `🎯 ${a.goal.label} · ${Math.min(society.autonomy.goalProgress(a), a.goal.target)}/${a.goal.target}` : "";
+      if (gl.textContent !== goalText) gl.textContent = goalText;
       e.mini.innerHTML = bar(a.mood, "#facc15") + bar(a.rep, "#60a5fa") + bar(100 - a.hunger, "#4ade80");
       e.money.innerHTML = `<div class="icons">${statusIcons(a)}</div>🪙 ${Math.floor(a.coins)}`;
       e.mini.title = `mood ${Math.round(a.mood)} · reputation ${Math.round(a.rep)} · fullness ${Math.round(100 - a.hunger)}`;
@@ -220,13 +230,17 @@ export function createUI() {
     if (e.phase !== "idle") cards.push(`<div class="now-card" style="--c:#c084fc"><div class="t">🗳️ Election: ${e.phase === "campaign" ? "campaign underway" : e.phase === "rally" ? "rally in the plaza" : "counting votes"}<small>${e.candidates.map((c) => esc(residentById(c.id)?.name)).join(" vs ")}</small></div></div>`);
     for (const a of sim.agents.filter((x) => x.state === "jailed")) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#9ca3af"><div class="t">⛓️ ${esc(a.res.name)} is serving time<small>${esc(a.activity)}</small></div></div>`);
     $("liveNow").innerHTML = cards.join("") || `<p class="empty">Quiet moment. Nobody is chatting right now.</p>`;
+    const thoughts = society.autonomy.thoughts.slice(0, 8);
+    $("liveThoughts").innerHTML = thoughts.length
+      ? thoughts.map((t) => { const a = sim.agents.find((x) => x.id === t.id); const col = a ? MODELS[a.res.model].color : "#999"; return `<div class="thought" data-who="${t.id}"><span class="dot" style="background:${col}"></span><div><b>${esc(t.name)}</b> <i>“${esc(t.text)}”</i></div></div>`; }).join("")
+      : `<p class="empty">Nobody has said what's on their mind yet.</p>`;
     const groups = {};
     for (const a of sim.agents) { const [icon, label] = category(a); (groups[label] ??= { icon, list: [] }).list.push(a); }
     const order = ["Being arrested", "Talking", "At the event", "Working", "Fishing", "Gardening", "On the move", "Hanging out", "Napping", "In jail", "Sleeping"];
     $("liveList").innerHTML = order.filter((k) => groups[k]).map((k) => `<div class="group-h">${groups[k].icon} ${k} <i>${groups[k].list.length}</i></div>` +
       groups[k].list.map((a) => `<div class="lrow" data-who="${a.id}"><span class="dot" style="background:${MODELS[a.res.model].color}"></span><span class="nm">${esc(a.res.name)}</span><span class="ac">${esc(a.activity)} · ${esc(placeName(a))}</span></div>`).join("")).join("");
   }
-  for (const id of ["liveNow", "liveList"]) $(id).addEventListener("click", (ev) => {
+  for (const id of ["liveNow", "liveList", "liveThoughts"]) $(id).addEventListener("click", (ev) => {
     const who = ev.target.closest("[data-who]")?.dataset.who;
     const a = who && sim.agents.find((x) => x.id === who);
     if (a) ui.select(a, true);
@@ -428,6 +442,8 @@ export function createUI() {
         <p class="role">${esc(a.res.job)}${w ? ` · ${w.from}:00–${w.to}:00 · ${w.wage}🪙/h` : ""}<br>${c.icon} ${esc(c.name)}</p></div></div>
       <p class="now">Now: <span class="nowText">${esc(a.activity)}</span></p>
       <div class="stats"></div>
+      ${a.goal ? `<h4>Personal goal</h4><div class="goal"><div class="g">🎯 ${esc(a.goal.label)}</div><div class="goalbar"></div>${a.goal.why ? `<small>Why: ${esc(a.goal.why)}</small>` : ""}${a.dream ? `<small>✨ Dream: ${esc(a.dream)}</small>` : ""}${a.goalsDone ? `<small>🏅 ${a.goalsDone} goal${a.goalsDone > 1 ? "s" : ""} achieved</small>` : ""}</div>` : ""}
+      ${a.thought ? `<h4>On their mind ${sim.liveModels[a.res.model] ? "🤖" : ""}</h4><p class="role thoughtText">“${esc(a.thought)}”</p>` : ""}
       <h4>Today's plan ${a.plan?.source === "ai" ? "🤖" : ""}</h4>
       <div class="plan">${a.plan ? esc(a.plan.intention) : "Still asleep."}${a.plan ? `<small>${a.plan.work ? "✅ working today" : "🛋️ skipping work"}${a.plan.defy.length ? ` · 😈 willing to break: ${a.plan.defy.map((t) => LAW_TYPES[t]?.title ?? t).join(", ")}` : " · 😇 following the law"}${a.plan.wishes?.length ? `<br>💭 wants to: ${a.plan.wishes.map((w) => WISH_LABEL[w] ?? w).join(", ")}` : ""}</small>` : ""}</div>
       <h4>Record</h4><div class="tags">${tags}</div>
@@ -445,6 +461,10 @@ export function createUI() {
     const card = $("card"), a = selected;
     if (card.hidden || !a) return;
     card.querySelector(".nowText").textContent = a.activity;
+    const gb = card.querySelector(".goalbar");
+    if (gb && a.goal) gb.innerHTML = bar((Math.min(society.autonomy.goalProgress(a), a.goal.target) / a.goal.target) * 100, "#f2b843") + `<small>${Math.min(society.autonomy.goalProgress(a), a.goal.target)} / ${a.goal.target}</small>`;
+    const tt = card.querySelector(".thoughtText");
+    if (tt && a.thought) tt.textContent = `“${a.thought}”`;
     card.querySelector(".stats").innerHTML = [
       ["🪙 Coins", Math.floor(a.coins), Math.min(100, a.coins / 2), "#facc15"],
       ["😊 Mood", Math.round(a.mood), a.mood, "#f472b6"],
