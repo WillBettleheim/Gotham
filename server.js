@@ -33,7 +33,29 @@ const LIVE = Object.values(LIVE_MODELS).some(Boolean);
 // Opus 5.5 and Sonnet 5.5 support server-side refusal fallbacks.
 const SERVER_FALLBACK = new Set(["claude-opus-5-5", "claude-sonnet-5-5"]);
 
-const stats = { calls: 0, errors: 0, inputTokens: 0, outputTokens: 0, byModel: {} };
+// ---------- cost tracking ----------
+// USD per million tokens [input, output]. Claude prices are Anthropic's list prices; the others are
+// rough estimates (free tiers count as $0) and can be overridden with PRICE_<MODEL>=in,out in .env.
+const DEFAULT_PRICES = {
+  "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10], "claude-haiku-5-5": [0.1, 0.5],
+  gemini: [0.3, 2.5], gpt: [0, 0], llama: [0, 0], mistral: [0.1, 0.3], deepseek: [0.27, 1.1],
+};
+if (process.env.OPENAI_API_KEY) DEFAULT_PRICES.gpt = [0.25, 2];
+const PRICES = Object.fromEntries(Object.entries(DEFAULT_PRICES).map(([m, p]) => {
+  const env = process.env[`PRICE_${m.replace(/[^a-z0-9]/gi, "_").toUpperCase()}`];
+  const parsed = env?.split(",").map(Number);
+  return [m, parsed?.length === 2 && parsed.every((n) => n >= 0) ? parsed : p];
+}));
+const stats = { calls: 0, errors: 0, inputTokens: 0, outputTokens: 0, cost: 0, byModel: {}, startedAt: Date.now(), budget: Number(process.env.AI_BUDGET_USD) > 0 ? Number(process.env.AI_BUDGET_USD) : null, budgetHit: false };
+function record(model, input, output) {
+  const [pi, po] = PRICES[model] ?? [0, 0];
+  const cost = (input * pi + output * po) / 1e6;
+  const m = (stats.byModel[model] ??= { calls: 0, input: 0, output: 0, cost: 0 });
+  m.calls++; m.input += input; m.output += output; m.cost += cost;
+  stats.calls++; stats.inputTokens += input; stats.outputTokens += output; stats.cost += cost;
+  if (stats.budget && stats.cost >= stats.budget && !stats.budgetHit) { stats.budgetHit = true; console.log(`  AI budget of $${stats.budget} reached; residents switch to offline chatter.`); }
+}
+class BudgetError extends Error {}
 
 // Keep a lid on parallel requests.
 let active = 0;
@@ -51,12 +73,10 @@ async function withSlot(fn) {
 }
 
 async function ask(model, system, user, maxTokens = 2000) {
+  if (stats.budget && stats.cost >= stats.budget) throw new BudgetError("budget reached");
   if (!isClaude(model)) {
     const { text, usage } = await withSlot(() => chatCompletion(resolveProvider(model), system, user, 1024));
-    stats.calls++;
-    stats.inputTokens += usage.input;
-    stats.outputTokens += usage.output;
-    stats.byModel[model] = (stats.byModel[model] ?? 0) + 1;
+    record(model, usage.input, usage.output);
     return text;
   }
   const params = {
@@ -71,10 +91,8 @@ async function ask(model, system, user, maxTokens = 2000) {
       ? client.beta.messages.create({ ...params, betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })
       : client.messages.create(params)
   );
-  stats.calls++;
-  stats.inputTokens += res.usage?.input_tokens ?? 0;
-  stats.outputTokens += res.usage?.output_tokens ?? 0;
-  stats.byModel[model] = (stats.byModel[model] ?? 0) + 1;
+  const u = res.usage ?? {};
+  record(model, (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0), u.output_tokens ?? 0);
   if (res.stop_reason === "refusal") return null;
   const text = res.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
   return text || null;
@@ -143,7 +161,18 @@ function reflectPrompt(r, other, b) {
 
 ${history}
 
-In one short sentence (under 25 words), first person, write what you'll remember about ${other.name} from this. Output only the sentence.`;
+Reply with JSON only: {"memory": "<one short first-person sentence, under 25 words, about what you'll remember about ${other.name}>", "feeling": <a number from -2 (this made me dislike them) to 2 (this made me like them much more)>}`;
+}
+
+function chatPrompt(r, b) {
+  const lines = list(b.history, 10).map((h) => `${h.from === "you" ? r.name : "Council member"}: ${clip(h.text, 300)}`).join("\n");
+  return `Your situation:
+${clip(b.situation, 3000)}
+
+A member of Gotham's citizens' council (the people who set the town's laws) has come to talk with you directly.
+${lines ? `Conversation so far:\n${lines}\n` : ""}Council member: ${clip(b.message, 500)}
+
+Reply in character, honestly, as ${r.name} would. Speak your mind about your life, the laws, the mayor and your neighbors. One to three sentences. Output only what you say.`;
 }
 
 // ---------- decisions: plans, speeches, votes, proposals, judging ----------
@@ -182,6 +211,21 @@ You have some free time right now. Nobody tells you what to do: you decide, like
 ${opts}
 
 Reply with JSON only: {"choice": "<option id>", "thought": "<what you're thinking, first person, max 18 words>"}`;
+  }
+  if (kind === "react") {
+    const opts = list(b.options, 8).map((o) => `- "${clip(o.id, 4)}": ${clip(o.label, 100)}`).join("\n");
+    return `${situation}
+
+EMERGENCY: ${clip(b.disaster, 300)}
+What do you do right now? React the way ${r.name} truly would: brave, scared, selfish, generous, practical. Your options:
+${opts}
+
+Reply with JSON only: {"choice": "<option id>", "thought": "<what goes through your head, max 15 words>", "say": "<what you shout or say out loud, max 12 words>"}`;
+  }
+  if (kind === "diary") {
+    return `${situation}
+
+It's late at night. Write tonight's entry in your private diary about your day in Gotham: what happened, how you feel about it, and what's on your mind for tomorrow. Two to four sentences, first person, in your own voice. Output only the diary entry.`;
   }
   if (kind === "speech") {
     return `${situation}
@@ -249,7 +293,23 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
     if (url.pathname === "/api/status") {
-      return send(res, 200, { live: LIVE, liveModels: LIVE_MODELS, town: TOWN_NAME, stats });
+      const hours = Math.max(1 / 60, (Date.now() - stats.startedAt) / 3600e3);
+      return send(res, 200, { live: LIVE, liveModels: LIVE_MODELS, town: TOWN_NAME, stats, prices: PRICES, perHour: stats.cost / hours });
+    }
+    if (req.method === "POST" && url.pathname === "/api/budget") {
+      const b = await readJson(req);
+      const usd = Number(b.usd);
+      stats.budget = usd > 0 ? Math.min(usd, 100000) : null;
+      stats.budgetHit = !!stats.budget && stats.cost >= stats.budget;
+      return send(res, 200, { budget: stats.budget });
+    }
+    if (req.method === "POST" && url.pathname === "/api/chat") {
+      const b = await readJson(req);
+      const r = who(b.agentId, b.persona);
+      if (!r) return send(res, 400, { error: "unknown resident" });
+      if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
+      const raw = await ask(r.model, personaPrompt(r), chatPrompt(r, b), 2000);
+      return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
     }
     if (req.method === "POST" && url.pathname === "/api/think") {
       const b = await readJson(req);
@@ -261,10 +321,10 @@ const server = http.createServer(async (req, res) => {
         return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
       }
       const r = who(b.agentId, b.persona);
-      if (!r || !["plan", "decide", "speech", "vote", "propose"].includes(b.kind)) return send(res, 400, { error: "bad request" });
+      if (!r || !["plan", "decide", "speech", "vote", "propose", "react", "diary"].includes(b.kind)) return send(res, 400, { error: "bad request" });
       if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
       const raw = await ask(r.model, personaPrompt(r), thinkPrompt(b.kind, r, b), 2000);
-      if (b.kind === "speech") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
+      if (b.kind === "speech" || b.kind === "diary") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });
       const out = parseJson(raw);
       return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
     }
@@ -287,8 +347,10 @@ const server = http.createServer(async (req, res) => {
         const r = who(b.agentId, b.persona), other = who(b.otherId, b.otherPersona);
         if (!r || !other) return send(res, 400, { error: "unknown resident" });
         if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
-        const memory = await ask(r.model, personaPrompt(r), reflectPrompt(r, other, b), 1500);
-        return send(res, 200, { memory });
+        const raw = await ask(r.model, personaPrompt(r), reflectPrompt(r, other, b), 1500);
+        const out = parseJson(raw);
+        const feeling = Math.max(-2, Math.min(2, Number(out?.feeling) || 0));
+        return send(res, 200, { memory: out?.memory ? String(out.memory) : raw, feeling });
       }
     }
 
@@ -301,6 +363,7 @@ const server = http.createServer(async (req, res) => {
     fs.createReadStream(file).pipe(res);
   } catch (err) {
     stats.errors++;
+    if (err instanceof BudgetError) return send(res, 503, { error: "budget" });
     if (err instanceof Anthropic.APIError || err.status || err.name === "TimeoutError") {
       console.error(`[model] ${err.status ?? ""} ${err.message}`);
       return send(res, 502, { error: "model error", status: err.status });
