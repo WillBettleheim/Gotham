@@ -9,6 +9,7 @@ const GAME_MIN_PER_SEC = 0.5;  // at 1x: one game minute every 2 real seconds
 const PAIR_COOLDOWN = 150;     // game minutes before the same two chat again
 const SOLO_COOLDOWN = 25;      // game minutes of rest after any chat
 const SAVE_KEY = "gotham-v2";
+const GROUP_PLACES = new Set(["events", "plaza", "cafe", "cmarket", "market", "park", "theater"]);
 const rand = (a, b) => a + Math.random() * (b - a);
 
 export const fmtTime = (min) => {
@@ -37,7 +38,7 @@ export class Agent {
     this.speaking = false;
     this.target = null;
   }
-  get visible() { return this.state !== "sleeping"; }
+  get visible() { return this.state !== "sleeping" && this.state !== "away"; }
 }
 
 export class Sim {
@@ -138,7 +139,7 @@ export class Sim {
   }
 
   updateAgent(a, dt) {
-    if (a.state === "talking" || a.state === "jailed") return;
+    if (a.state === "talking" || a.state === "jailed" || a.state === "away") return;
     const h = this.hour;
     const [bed, wake] = this.bedtime(a);
     const shouldSleep = inRange(h, bed, wake);
@@ -227,7 +228,11 @@ export class Sim {
     let tile;
     if (place === "home") tile = a.home;
     else if (place === "jail") tile = this.town.special.jail.door;
-    else {
+    else if (!this.town.places[place]?.length) {
+      // not a named place (a building site, a disaster scene...): walk back to where they were heading
+      if (a.target) return this.goToTile(a, a.target.x, a.target.y, label);
+      return this.goTo(a, "plaza", label);
+    } else {
       const tiles = this.town.places[place];
       const taken = new Set(this.agents.filter((o) => o !== a && o.target).map((o) => `${o.target.x},${o.target.y}`));
       const free = tiles.filter((t) => !taken.has(`${t.x},${t.y}`));
@@ -276,6 +281,14 @@ export class Sim {
     if (this.convos.size >= max) return;
     const s = this.society, quiet = s.quietActive(this.hour);
     const free = this.agents.filter((a) => (a.state === "idle" || a.state === "walking") && !a.escort && this.time - a.lastChat > SOLO_COOLDOWN);
+    // groups gather at lively places: three or four neighbors talk together
+    if (!quiet && Math.random() < dt * 0.06) {
+      const idle = free.filter((a) => a.state === "idle" && GROUP_PLACES.has(a.place));
+      for (const a of idle) {
+        const group = [a, ...idle.filter((o) => o !== a && o.place === a.place && Math.hypot(o.x - a.x, o.y - a.y) < 3.5)].slice(0, 4);
+        if (group.length >= 3) { this.startGroupConversation(group); return; }
+      }
+    }
     for (let i = 0; i < free.length; i++) for (let j = i + 1; j < free.length; j++) {
       const a = free[i], b = free[j];
       if (a.state === "talking" || b.state === "talking") continue;
@@ -332,6 +345,53 @@ export class Sim {
     await this.finishConversation(convo, entry);
   }
 
+  async startGroupConversation(members) {
+    const names = members.map((m) => m.res.name);
+    const convo = { a: members[0], b: members[1], members, group: true, history: [], place: placeName(members[0]), started: this.time, feelings: {} };
+    this.convos.add(convo);
+    const cx = members.reduce((s, m) => s + m.x, 0) / members.length, cy = members.reduce((s, m) => s + m.y, 0) / members.length;
+    for (const p of members) {
+      p.prevState = p.state; p.state = "talking"; p.chatWith = members.find((m) => m !== p);
+      p.activity = `chatting with ${names.filter((n) => n !== p.res.name).join(", ")}`;
+      p.x = Math.round(p.x); p.y = Math.round(p.y);
+      const dx = cx - p.x, dy = cy - p.y;
+      p.facing = Math.abs(dx) >= Math.abs(dy) ? (dx >= 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+    }
+    const entry = this.ui.beginConversation(convo, fmtTime(this.time).text);
+    const maxTurns = Math.floor(rand(6, 11));
+    let last = null, speaker = members[0];
+    for (let turn = 0; turn < maxTurns; turn++) {
+      const listener = last ?? members[1];
+      speaker.bubble = { typing: true, born: this.realTime };
+      const { text } = await this.getLine(speaker, listener, convo, turn, maxTurns);
+      speaker.bubble = null;
+      if (!text) break;
+      convo.history.push({ id: speaker.id, name: speaker.res.name, text });
+      this.ui.addLine(entry, speaker, text);
+      const ms = Math.min(7000, Math.max(2400, text.length * 50));
+      for (const m of members) if (m !== speaker && m.bubble && !m.bubble.typing) m.bubble = null;
+      speaker.bubble = { text, until: this.realTime + ms / 1000, born: this.realTime };
+      speaker.speaking = true; await this.waitReal(ms * 0.75); speaker.speaking = false; await this.waitReal(ms * 0.25);
+      last = speaker;
+      const others = members.filter((m) => m !== speaker);
+      speaker = others[Math.floor(Math.random() * others.length)];
+    }
+    for (const p of members) {
+      p.state = "idle"; p.chatWith = null; p.lastChat = this.time; p.bubble = null;
+      p.activity = pickAct(p.place, p); p.dwellUntil = Math.max(p.dwellUntil, this.time + rand(10, 40));
+      p.memories.push({ about: p.id, text: `Hung out with ${names.filter((n) => n !== p.res.name).join(", ")} at ${convo.place}.`, time: fmtTime(this.time).text });
+      p.social = Math.min(100, (p.social ?? 50) + 15); p.mood = Math.min(100, p.mood + 3);
+      for (const q of members) if (q !== p) p.rel[q.id] = (p.rel[q.id] ?? 0) + 1;
+    }
+    for (let i = 0; i < members.length; i++) for (let j = i + 1; j < members.length; j++) {
+      this.society.social.afterConversation({ a: members[i], b: members[j], place: convo.place, tense: false }, {});
+    }
+    this.convos.delete(convo);
+    this.ui.endConversation(entry);
+    for (const p of members) if (p.leaving) { p.leaving = false; this.removeResident(p); }
+    this.save();
+  }
+
   async getLine(speaker, listener, convo, turn, maxTurns) {
     const t = fmtTime(this.time);
     const ctx = { history: convo.history, turn, maxTurns, news: this.news, period: periodOf(t.hh), society: this.society, self: speaker, other: listener, tense: convo.tense };
@@ -342,6 +402,7 @@ export class Sim {
           body: JSON.stringify({
             speakerId: speaker.id, listenerId: listener.id,
             persona: this.personaOf(speaker), listenerPersona: this.personaOf(listener),
+            group: convo.group ? convo.members.filter((m) => m !== speaker).map((m) => m.res.name) : undefined,
             time: `Day ${t.day}, ${t.text} (${ctx.period})`, place: convo.place,
             activity: speaker.prevState === "walking" ? "walking through town" : speaker.activityBefore ?? "hanging out",
             history: convo.history, turn, maxTurns, news: this.news,
