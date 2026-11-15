@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Gotham · AI Town</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml" />
+  <meta name="theme-color" content="#120f24" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -13,8 +15,12 @@
     <canvas id="world"></canvas>
     <div id="hud">
       <div class="clock-card glass">
-        <div id="clock">07:30</div>
-        <div id="day">Day 1 · morning</div>
+        <div class="sky" id="skyIcon">☀️</div>
+        <div>
+          <div id="clock">07:30</div>
+          <div id="day">Day 1 · morning</div>
+          <div class="daybar"><i id="dayBar"></i></div>
+        </div>
       </div>
       <div class="controls glass">
         <button id="pause" title="Pause (space)">⏸</button>
@@ -24,8 +30,15 @@
         <button data-speed="5">5×</button>
         <button data-speed="15">15×</button>
       </div>
-      <div class="ticker glass" id="ticker"><span>🏦 <b id="tTreasury">200</b></span><span>👑 <b id="tMayor">no mayor</b></span><span>⛓️ <b id="tJail">0</b></span></div>
+      <div class="ticker" id="ticker">
+        <span class="chip glass" title="Town treasury">🏦 <b id="tTreasury">200</b></span>
+        <span class="chip glass" title="Mayor">👑 <b id="tMayor">no mayor</b></span>
+        <span class="chip glass" title="Residents">👥 <b id="tPop">13</b></span>
+        <span class="chip glass" title="In jail">⛓️ <b id="tJail">0</b></span>
+        <span class="chip glass event-chip" id="tEvent" title="Today's event" hidden></span>
+      </div>
     </div>
+    <div id="minimap" class="glass" title="Click to jump there"><canvas id="mini"></canvas></div>
     <div id="toasts"></div>
     <div id="hint">Drag to pan · scroll to zoom · click a resident</div>
     <div id="card" hidden></div>
@@ -34,20 +47,23 @@
   <aside id="side">
     <header>
       <div class="brand">
-        <div class="logo">G</div>
-        <div><h1>Gotham</h1><p class="sub">A town where AI models live, work, vote and face the law.</p></div>
+        <img class="crest" src="assets/logo.svg" alt="" />
+        <div>
+          <h1 class="wordmark">GOTHAM</h1>
+          <p class="sub">AI town · where models live, work, vote and dream</p>
+        </div>
       </div>
       <div class="status"><span id="mode" class="badge">connecting…</span><span id="calls"></span><button id="resetBtn" class="link" title="Start the town over">Reset town</button></div>
       <div class="legend" id="legend"></div>
     </header>
 
     <nav id="tabs">
-      <button data-tab="live" class="on">🔴 Live</button>
-      <button data-tab="town">🏘️ Town</button>
-      <button data-tab="chats">💬 Chats</button>
-      <button data-tab="laws">⚖️ Laws</button>
-      <button data-tab="politics">🗳️ Politics</button>
-      <button data-tab="gazette">📰 Gazette</button>
+      <button data-tab="live" class="on"><span>🔴</span>Live</button>
+      <button data-tab="town"><span>🏘️</span>Town</button>
+      <button data-tab="chats"><span>💬</span>Chats</button>
+      <button data-tab="laws"><span>⚖️</span>Laws</button>
+      <button data-tab="politics"><span>🗳️</span>Politics</button>
+      <button data-tab="gazette"><span>📰</span>Gazette</button>
     </nav>
 
     <div id="panes">
@@ -55,6 +71,8 @@
         <div id="liveStats" class="live-stats"></div>
         <h2>Happening now</h2>
         <div id="liveNow"></div>
+        <h2>What they're thinking</h2>
+        <div id="liveThoughts"></div>
         <h2>Everyone right now</h2>
         <div id="liveList"></div>
       </section>

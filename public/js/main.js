@@ -97,6 +97,36 @@ canvas.addEventListener("pointerup", (e) => {
   }
   drag = null;
 });
+// ---------- minimap ----------
+const mini = $("mini"), mctx = mini.getContext("2d");
+mini.width = 264; mini.height = 352;
+const miniScale = mini.width / (W * T);
+const miniBase = document.createElement("canvas");
+miniBase.width = mini.width; miniBase.height = mini.height;
+miniBase.getContext("2d").drawImage(layers.ground, 0, 0, mini.width, mini.height);
+let miniLast = 0;
+function drawMinimap(now) {
+  if (now - miniLast < 200) return;
+  miniLast = now;
+  mctx.drawImage(miniBase, 0, 0);
+  mctx.fillStyle = `rgba(14,18,52,${darkness(sim.time) * 0.8})`; mctx.fillRect(0, 0, mini.width, mini.height);
+  for (const a of sim.agents) {
+    if (!a.visible) continue;
+    const x = (a.x + 0.5) * T * miniScale, y = (a.y + 0.5) * T * miniScale;
+    mctx.fillStyle = "#0b0918"; mctx.beginPath(); mctx.arc(x, y, 5, 0, Math.PI * 2); mctx.fill();
+    mctx.fillStyle = MODELS[a.res.model].color; mctx.beginPath(); mctx.arc(x, y, 3.6, 0, Math.PI * 2); mctx.fill();
+    if (a === ui.selected) { mctx.strokeStyle = "#f2b843"; mctx.lineWidth = 2; mctx.beginPath(); mctx.arc(x, y, 7.5, 0, Math.PI * 2); mctx.stroke(); }
+  }
+  mctx.strokeStyle = "rgba(255,240,200,0.95)"; mctx.lineWidth = 2;
+  mctx.strokeRect(cam.x * miniScale, cam.y * miniScale, (vw / cam.zoom) * miniScale, (vh / cam.zoom) * miniScale);
+}
+mini.addEventListener("click", (e) => {
+  const r = mini.getBoundingClientRect();
+  const wx = ((e.clientX - r.left) / r.width) * W * T, wy = ((e.clientY - r.top) / r.height) * H * T;
+  ui.follow = false;
+  cam.x = wx - vw / cam.zoom / 2; cam.y = wy - vh / cam.zoom / 2; clampCam();
+});
+
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
   const r = canvas.getBoundingClientRect();
@@ -182,6 +212,12 @@ function frame(now) {
   const ft = fmtTime(sim.time);
   $("clock").textContent = ft.text;
   $("day").textContent = `Day ${ft.day} · ${periodOf(ft.hh)}`;
+  const dayFrac = (sim.time % 1440) / 1440;
+  $("dayBar").style.width = `${dayFrac * 100}%`;
+  const sky = $("skyIcon"), hh = ft.hh;
+  const skyState = hh >= 21 || hh < 5 ? "night" : (hh >= 18 || hh < 7) ? "dusk" : "day";
+  if (sky.dataset.s !== skyState) { sky.dataset.s = skyState; sky.className = `sky ${skyState === "day" ? "" : skyState}`; sky.textContent = skyState === "night" ? "🌙" : skyState === "dusk" ? "🌇" : "☀️"; }
+  drawMinimap(now);
   requestAnimationFrame(frame);
 }
 
@@ -387,10 +423,11 @@ function drawBubbles(list, t) {
   const boxes = list.map((a) => {
     const s = toScreen(a), b = a.bubble, m = MODELS[a.res.model];
     ctx.font = "600 13px Nunito, system-ui, sans-serif";
+    if (b.thought) ctx.font = "italic 600 12.5px Nunito, system-ui, sans-serif";
     const lines = b.typing ? [] : wrap(b.text, 230);
     const textW = b.typing ? 34 : Math.max(...lines.map((l) => ctx.measureText(l).width));
     ctx.font = "800 11px Nunito, system-ui, sans-serif";
-    const head = `${a.res.name} · ${m.short}${b.speech ? " · 📣 speech" : ""}`;
+    const head = b.thought ? `💭 ${a.res.name} thinks` : `${a.res.name} · ${m.short}${b.speech ? " · 📣 speech" : ""}`;
     const headW = ctx.measureText(head).width + 14;
     const w = Math.max(textW + 22, headW + 12, 70), h = (b.typing ? 20 : lines.length * 17 + 6) + 26;
     const anchorY = s.y - 30 * cam.zoom - 20;
@@ -419,9 +456,10 @@ function drawBubbles(list, t) {
     ctx.strokeStyle = "rgba(255,253,247,0.9)"; ctx.lineWidth = 2;
     if (bx.anchorY - (y + h) > 4) { ctx.beginPath(); ctx.moveTo(s.x, y + h); ctx.lineTo(s.x, bx.anchorY + 6); ctx.stroke(); }
     ctx.fillStyle = "rgba(20,14,30,0.28)"; roundRect(ctx, x + 2, y + 4, w, h, 12); ctx.fill();
-    ctx.fillStyle = "#fffdf7"; roundRect(ctx, x, y, w, h, 12); ctx.fill();
+    const paper = b.thought ? "#f1ecff" : "#fffdf7";
+    ctx.fillStyle = paper; roundRect(ctx, x, y, w, h, 12); ctx.fill();
     ctx.strokeStyle = m.color; ctx.lineWidth = 2; roundRect(ctx, x + 1, y + 1, w - 2, h - 2, 11); ctx.stroke();
-    ctx.fillStyle = "#fffdf7";
+    ctx.fillStyle = paper;
     ctx.beginPath(); ctx.moveTo(s.x - 7, y + h - 2); ctx.lineTo(s.x, y + h + 8); ctx.lineTo(s.x + 7, y + h - 2); ctx.fill();
     ctx.strokeStyle = m.color; ctx.beginPath(); ctx.moveTo(s.x - 7, y + h - 1); ctx.lineTo(s.x, y + h + 8); ctx.lineTo(s.x + 7, y + h - 1); ctx.stroke();
     // name tag
@@ -435,8 +473,8 @@ function drawBubbles(list, t) {
         ctx.fillStyle = "#8a7f99"; ctx.beginPath(); ctx.arc(x + 20 + i * 11, y + 36 - bounce, 3.2, 0, Math.PI * 2); ctx.fill();
       }
     } else {
-      ctx.font = "600 13px Nunito, system-ui, sans-serif";
-      ctx.fillStyle = "#2a2230"; ctx.textBaseline = "top";
+      ctx.font = b.thought ? "italic 600 12.5px Nunito, system-ui, sans-serif" : "600 13px Nunito, system-ui, sans-serif";
+      ctx.fillStyle = b.thought ? "#4b3f74" : "#2a2230"; ctx.textBaseline = "top";
       lines.forEach((l, i) => ctx.fillText(l, x + 11, y + 28 + i * 17));
     }
     ctx.restore();
