@@ -5,6 +5,8 @@ import { penaltyText } from "./society.js";
 import { WORKPLACES, placeLabel } from "./population.js";
 import { DISASTERS } from "./disasters.js";
 import { SERIES } from "./stats.js";
+import { PROJECTS } from "./construction.js";
+import { LOTS } from "./mapdata.js";
 import { BUILDINGS } from "./mapdata.js";
 
 const $ = (id) => document.getElementById(id);
@@ -30,7 +32,8 @@ export function createUI() {
       feed.querySelector(".empty")?.remove();
       const el = document.createElement("div");
       el.className = "convo live";
-      el.innerHTML = `<div class="h"><span>${esc(convo.a.res.name)} & ${esc(convo.b.res.name)} · ${esc(convo.place)}</span><span>${time}</span></div>`;
+      const who = convo.members ? convo.members.map((m) => m.res.name).join(", ") : `${convo.a.res.name} & ${convo.b.res.name}`;
+      el.innerHTML = `<div class="h"><span>${convo.members ? "👥 " : ""}${esc(who)} · ${esc(convo.place)}</span><span>${time}</span></div>`;
       feed.prepend(el);
       while (feed.children.length > 40) feed.lastChild.remove();
       updateLiveCount();
@@ -72,6 +75,22 @@ export function createUI() {
       renderCard();
     },
     renderLegend,
+    peek(b, sx, sy) {
+      const box = $("peek");
+      if (!b) { box.hidden = true; return; }
+      const inside = sim.agents.filter((a) => a.place === b.place && a.visible);
+      const dmg = society.disasters.damaged[b.place];
+      const staff = sim.agents.filter((a) => a.res.work?.place === b.place);
+      box.innerHTML = `<button class="x" title="Close">✕</button><h4>${esc(b.name)}</h4>
+        ${dmg ? `<p class="budget-warn">🚧 Closed for repairs (${Math.round(dmg.progress * 100)}% rebuilt)</p>` : ""}
+        ${staff.length ? `<small class="role">Staff: ${staff.map((a) => esc(a.res.name)).join(", ")}</small>` : ""}
+        <div class="who">${inside.length ? inside.map((a) => `<span data-id="${a.id}">${MODELS[a.res.model] ? `<b style="color:${MODELS[a.res.model].color}">●</b>` : ""} ${esc(a.res.name)} · ${esc(a.activity)}</span>`).join("") : `<span class="role">Nobody's here right now.</span>`}</div>`;
+      box.style.left = `${Math.max(8, Math.min(sx, box.parentElement.clientWidth - 270))}px`;
+      box.style.top = `${Math.max(70, Math.min(sy, box.parentElement.clientHeight - 200))}px`;
+      box.hidden = false;
+      box.querySelector(".x").onclick = () => (box.hidden = true);
+      box.querySelectorAll("[data-id]").forEach((el) => el.onclick = () => { const a = sim.agents.find((x) => x.id === el.dataset.id); if (a) { ui.select(a, true); box.hidden = true; } });
+    },
     addResident(a) { if (!sim) return; addRow(a, true); renderCommunities(true); }, // before attach(), buildResidents adds everyone
     removeResident(a) {
       if (!sim) return;
@@ -94,12 +113,14 @@ export function createUI() {
 
   function renderAll() {
     if (!sim) return;
-    renderResidents(); renderCommunities(); renderPopulation(); renderLive(); renderLaws(); renderProposals(); renderCrimes(); renderPolitics(); renderGazette(); renderNews(); renderTicker();
+    renderResidents(); renderCommunities(); renderPopulation(); renderLive(); renderLaws(); renderPetitions(); renderPoliticsExtras(); renderProposals(); renderCrimes(); renderPolitics(); renderGazette(); renderNews(); renderTicker();
   }
   function tick() {
     renderTicker();
     if (tab === "town") { renderResidents(); renderCommunities(); renderPopulation(); }
     if (tab === "live") renderLive();
+    if (tab === "laws") renderPetitions();
+    if (tab === "politics" && Math.floor(sim.time) % 5 === 0) renderRivalry();
     if (tab === "politics") renderElectionClock();
     if (selected) updateCardLive();
   }
@@ -275,6 +296,51 @@ export function createUI() {
     g.textAlign = "left"; g.fillStyle = "#a39cc4"; g.font = "18px Nunito, sans-serif";
     const day = (t) => `Day ${Math.floor(t / 1440) + 1}`; g.fillText(day(H[0].t), pad, c.height - 6); g.textAlign = "right"; g.fillText(day(H.at(-1).t), pad + w, c.height - 6); g.textAlign = "left";
   }
+  function renderConstruction() {
+    const box = $("construction"), c = society.construction;
+    const sig = JSON.stringify([c.sites, c.built, Math.floor(society.treasury / 50)]);
+    if (box.dataset.sig === sig) return;
+    box.dataset.sig = sig;
+    box.innerHTML = `<p class="note" style="margin:0 0 6px">Spend the treasury (🏦 ${Math.floor(society.treasury)}) on new buildings. Residents can volunteer to speed construction up.</p>` + Object.entries(PROJECTS).map(([id, p]) => {
+      const builtLot = Object.entries(c.built).find(([, pid]) => pid === id);
+      const site = Object.entries(c.sites).find(([, s]) => s.project === id);
+      if (builtLot) return `<div class="proj done"><span class="i">${p.icon}</span><div><b>${esc(p.name)}</b><small>Open on ${esc(LOTS.find((l) => l.id === builtLot[0]).name)}.</small></div><span>✅</span></div>`;
+      if (site) return `<div class="proj building"><span class="i">${p.icon}</span><div><b>${esc(p.name)}</b><small>Under construction: ${Math.round(site[1].progress * 100)}%</small>${bar(site[1].progress * 100, "#f2b843")}</div><span>🏗️</span></div>`;
+      const lots = c.freeLots(id);
+      return `<div class="proj"><span class="i">${p.icon}</span><div><b>${esc(p.name)} · ${p.cost} coins</b><small>${esc(p.desc)}</small></div>
+        <div class="act">${lots.length ? `<select data-p="${id}">${lots.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join("")}</select><button class="primary" data-build="${id}">Build</button>` : `<small>No free lot</small>`}</div></div>`;
+    }).join("") + `<p id="buildMsg" class="note"></p>`;
+    box.querySelectorAll("[data-build]").forEach((b) => b.onclick = () => {
+      const id = b.dataset.build, lot = box.querySelector(`select[data-p="${id}"]`).value;
+      const err = c.start(id, lot);
+      box.dataset.sig = ""; renderConstruction();
+      $("buildMsg").textContent = err ?? `Construction of ${PROJECTS[id].name} has begun!`;
+    });
+  }
+  function renderBusinesses() {
+    const list = society.civic.businesses;
+    $("businesses").innerHTML = list.length ? list.map((b) => `<div class="biz"><span>${b.icon} <b>${esc(b.name)}</b></span><small>${b.customers} customers so far</small></div>`).join("") : `<p class="empty">No resident has opened a business yet. Residents with savings and ambition open stalls on their own.</p>`;
+  }
+  function renderPetitions() {
+    const list = society.civic.petitions;
+    $("petitions").innerHTML = list.length ? list.map((p) => `<div class="petition">✍️ <b>${esc(p.text)}</b>${bar((p.signers.size / p.needed) * 100, "#c084fc")}<small>Started by ${esc(residentById(p.by)?.name)} because ${esc(p.why)} · ${p.signers.size}/${p.needed} signatures. Petitions with enough signatures come to you for a decision.</small></div>`).join("") : `<p class="empty">No petitions right now. Unhappy residents start them on their own.</p>`;
+  }
+  function renderRiverton() {
+    const r = society.riverton;
+    $("riverton").innerHTML = `<div class="rv"><p>🏞️ <b>Riverton</b>, the next town down the east road. Residents travel there to sell goods for ${Math.round((r.priceBonus - 1) * 100)}% more and bring back news.</p>
+      <p>Relations ${bar(r.relations, r.relations >= 60 ? "#4ade80" : r.relations >= 40 ? "#facc15" : "#f87171")} ${Math.round(r.relations)}/100 ${r.deal ? "· 🤝 trade deal signed" : ""}</p>
+      <p>${r.trips} trips so far · ${r.trade} coins earned there${r.relations >= 60 ? " · Riverton will send aid in a disaster" : ""}</p>
+      <div class="row2"><button id="rvGift">🎁 Send gift (50)</button>${r.deal ? "" : `<button id="rvDeal" class="primary">🤝 Trade deal (100)</button>`}</div><p id="rvMsg" class="note"></p></div>`;
+    $("rvGift").onclick = () => { const e = r.sendGift(); renderRiverton(); $("rvMsg").textContent = e ?? "Riverton appreciated the gift."; };
+    const deal = $("rvDeal"); if (deal) deal.onclick = () => { const e = r.signDeal(); renderRiverton(); $("rvMsg").textContent = e ?? "Deal signed!"; };
+  }
+  function renderRivalry() {
+    const rows = society.civic.modelStats();
+    const cols = [["residents", "👥"], ["mood", "😊"], ["coins", "🪙"], ["rep", "⭐"], ["goals", "🏅"], ["catches", "🎣"], ["couples", "💞"], ["elections", "👑"], ["businesses", "🏪"], ["crimes", "🚨"], ["jail", "⛓️"]];
+    const best = Object.fromEntries(cols.map(([k]) => [k, Math.max(...rows.map((r) => r[k]))]));
+    $("rivalry").innerHTML = `<div class="rival-wrap"><table class="riv"><tr><th>Model</th>${cols.map(([k, i]) => `<th title="${k}">${i}</th>`).join("")}</tr>${rows.sort((x, y) => y.mood - x.mood).map((r) => `<tr><td><span style="color:${r.color}">●</span> ${esc(r.label.replace("Claude ", ""))}</td>${cols.map(([k]) => `<td class="${r[k] === best[k] && r[k] > 0 && k !== "crimes" && k !== "jail" ? "best" : ""}">${r[k]}</td>`).join("")}</tr>`).join("")}</table></div><p class="note">Averages for mood, coins and reputation; totals for the rest. Gold marks the leader.</p>`;
+  }
+
   function renderMilestones() {
     const st = society.stats;
     $("milestones").innerHTML = st.milestones.map((m) => `<div class="ms ${st.reached[m.id] ? "on" : ""}"><span class="i">${m.icon}</span><div><b>${esc(m.name)}</b><small>${st.reached[m.id] ? `Day ${st.reached[m.id]} · ` : ""}${esc(m.desc)}</small></div></div>`).join("");
@@ -285,7 +351,7 @@ export function createUI() {
     if (document.activeElement !== $("immPolicy")) $("immPolicy").value = pop.policy;
     if (document.activeElement !== $("immGrant")) $("immGrant").value = String(pop.grant);
     $("departures").innerHTML = pop.departures_log.length ? `Recently moved away: ${pop.departures_log.slice(0, 4).map((d) => `${esc(d.name)} (day ${d.day}, ${esc(d.why)})`).join("; ")}` : "";
-    renderTrends(); renderMilestones();
+    renderTrends(); renderMilestones(); renderConstruction(); renderBusinesses();
     const st = society.population.stats();
     $("popStats").innerHTML = [["👥", st.population, "residents"], ["💼", st.employed, "employed"], ["🏠", `${st.population}/${st.capacity}`, "housing"], ["🧳", `${st.arrivals}↑ ${st.departures}↓`, "moved"]]
       .map(([i, v, k]) => `<div><b>${i} ${v}</b><span>${k}</span></div>`).join("");
@@ -304,6 +370,7 @@ export function createUI() {
     if (a.escort) return ["🚔", "Being arrested"];
     if (a.state === "talking") return ["💬", "Talking"];
     if (a.state === "sleeping") return ["💤", "Sleeping"];
+    if (a.state === "away") return ["🧳", "In Riverton"];
     if (a.working) return ["🔨", "Working"];
     if (a.state === "idle" && a.place === a.doingPlace) {
       if (a.doing === "fish") return ["🎣", "Fishing"];
@@ -323,9 +390,24 @@ export function createUI() {
     for (const c of talking) {
       const lines = c.history.slice(-3).map((h) => { const sp = sim.agents.find((x) => x.id === h.id); return `<p><b style="color:${MODELS[sp?.res.model]?.color ?? "#fff"}">${esc(h.name ?? sp?.res.name)}:</b> ${esc(h.text)}</p>`; }).join("");
       const typer = [c.a, c.b].find((x) => x.bubble?.typing);
-      cards.push(`<div class="now-card" data-who="${c.a.id}" style="--c:${MODELS[c.a.res.model].color}"><div class="t">💬 ${esc(c.a.res.name)} & ${esc(c.b.res.name)}<small>${esc(c.place)}</small></div>${lines}${typer ? `<p class="typing">${esc(typer.res.name)} is thinking…</p>` : ""}</div>`);
+      const title = c.members ? `👥 ${c.members.map((m) => esc(m.res.name)).join(", ")}` : `💬 ${esc(c.a.res.name)} & ${esc(c.b.res.name)}`;
+      const typer2 = (c.members ?? [c.a, c.b]).find((x) => x.bubble?.typing);
+      cards.push(`<div class="now-card" data-who="${c.a.id}" style="--c:${MODELS[c.a.res.model].color}"><div class="t">${title}<small>${esc(c.place)}</small></div>${lines}${typer2 ? `<p class="typing">${esc(typer2.res.name)} is thinking…</p>` : ""}</div>`);
     }
     for (const a of sim.agents.filter((x) => x.escort)) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#f87171"><div class="t">🚔 ${esc(a.res.name)} is being taken to jail</div></div>`);
+    const rv = society.riverton.merchant;
+    if (rv) cards.push(`<div class="now-card" style="--c:#c084fc"><div class="t">🛒 ${esc(rv.res.name)} from Riverton<small>Citizens' Market · ${rv.sales} coins sold</small></div><p>Selling exotic goods until ${String(Math.floor((rv.until % 1440) / 60)).padStart(2, "0")}:00.</p></div>`);
+    for (const [lotId, site] of Object.entries(society.construction.sites)) {
+      const p = PROJECTS[site.project];
+      const helpers = sim.agents.filter((a) => a.doing === "build" && a.state === "idle").length;
+      cards.push(`<div class="now-card" style="--c:#f2b843"><div class="t">🏗️ Building ${esc(p.name)}<small>${Math.round(site.progress * 100)}% · ${helpers} volunteer${helpers === 1 ? "" : "s"}</small></div>${bar(site.progress * 100, "#f2b843")}</div>`);
+    }
+    for (const g of society.civic.gatherings) if (sim.time >= g.start - 60 && sim.time < g.end) {
+      const host = residentById(g.by);
+      cards.push(`<div class="now-card" data-who="${g.by}" style="--c:#f472b6"><div class="t">${g.icon} ${esc(host?.name)}'s ${esc(g.name)}<small>${g.came.size} guest${g.came.size === 1 ? "" : "s"}</small></div></div>`);
+    }
+    const away = sim.agents.filter((a) => a.state === "away");
+    if (away.length) cards.push(`<div class="now-card" style="--c:#60a5fa"><div class="t">🧳 Visiting Riverton<small>${away.length} traveler${away.length > 1 ? "s" : ""}</small></div><p>${away.map((a) => esc(a.res.name)).join(", ")}</p></div>`);
     const ev = society.life.event;
     if (ev) {
       const fmt = (m) => `${String(Math.floor((m % 1440) / 60)).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
@@ -352,7 +434,7 @@ export function createUI() {
       : `<p class="empty">Nobody has said what's on their mind yet.</p>`;
     const groups = {};
     for (const a of sim.agents) { const [icon, label] = category(a); (groups[label] ??= { icon, list: [] }).list.push(a); }
-    const order = ["Being arrested", "Talking", "At the event", "Working", "Fishing", "Gardening", "On the move", "Hanging out", "Napping", "In jail", "Sleeping"];
+    const order = ["Being arrested", "Talking", "At the event", "Working", "Fishing", "Gardening", "On the move", "Hanging out", "Napping", "In Riverton", "In jail", "Sleeping"];
     $("liveList").innerHTML = order.filter((k) => groups[k]).map((k) => `<div class="group-h">${groups[k].icon} ${k} <i>${groups[k].list.length}</i></div>` +
       groups[k].list.map((a) => `<div class="lrow" data-who="${a.id}"><span class="dot" style="background:${MODELS[a.res.model].color}"></span><span class="nm">${esc(a.res.name)}</span><span class="ac">${esc(a.activity)} · ${esc(placeName(a))}</span></div>`).join("")).join("");
   }
@@ -430,7 +512,7 @@ export function createUI() {
       const m = residentById(p.by);
       const el = document.createElement("div");
       el.className = "proposal";
-      el.innerHTML = `<div class="t">👑 Mayor ${esc(m?.name)}'s proposal</div><div class="d">${esc(p.summary)}</div>${p.reason ? `<div class="r">“${esc(p.reason)}”</div>` : ""}
+      el.innerHTML = `<div class="t">${p.petition ? `✍️ Petition started by ${esc(m?.name)}` : `👑 Mayor ${esc(m?.name)}'s proposal`}</div><div class="d">${esc(p.summary)}</div>${p.reason ? `<div class="r">“${esc(p.reason)}”</div>` : ""}
         <div class="btns"><button class="yes">Approve</button><button class="no">Reject</button></div>`;
       el.querySelector(".yes").onclick = () => society.resolveProposal(p.id, true);
       el.querySelector(".no").onclick = () => society.resolveProposal(p.id, false);
@@ -494,6 +576,7 @@ export function createUI() {
       ? e.history.map((h) => `<div class="hist">Day ${h.day}: <b>👑 ${esc(residentById(h.winner)?.name)}</b> won · ${h.results.map((r) => `${esc(residentById(r.id)?.name)} ${r.votes}`).join(" · ")}</div>`).join("")
       : `<p class="empty">No elections yet.</p>`;
   }
+  function renderPoliticsExtras() { renderRiverton(); renderRivalry(); }
   function renderElectionClock() {
     const el = $("electionClock");
     if (!el) return;
@@ -568,6 +651,7 @@ export function createUI() {
       <h4>Record</h4><div class="tags">${tags}</div>
       <h4>Personality</h4><p class="role">${esc(a.res.personality)}</p>
       <h4>Relationships</h4><div class="bonds">${bondsHtml(a) || `<span class="role">Hasn&#39;t really met anyone yet</span>`}</div>
+      ${a.story ? `<h4>Life story</h4><p class="role story">${esc(a.story)}</p>` : ""}
       ${a.diary?.length ? `<h4>Diary 📔</h4><div class="diary"><small>Day ${a.diary[0].day}</small>${esc(a.diary[0].text)}</div>` : ""}
       <h4>Talk to ${esc(a.res.name)} ${sim.liveModels[a.res.model] ? "🤖" : ""}</h4>
       <div class="chatlog">${(a.chatLog ?? []).map((m) => `<div class="m ${m.from}">${esc(m.text)}</div>`).join("") || '<p class="role">Ask them anything: how they feel, what they think of your laws, their dreams…</p>'}</div>
