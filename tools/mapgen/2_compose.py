@@ -82,6 +82,9 @@ roads = [
     (256, 1216, 320, 1952, True),   # west lane (tx 8-9)
     (1376, 1216, 1440, 1952, True), # east lane (tx 43-44)
     (256, 1888, 1440, 1952, False), # Garden Lane (ty 59-60)
+    (0, 1504, 256, 1568, False),    # Cottage Row west, to the lower building lot
+    (0, 1888, 256, 1952, False),    # Garden Lane west, to the upper building lot
+    (1440, 1888, 1536, 1952, False),# the road east to Riverton
 ]
 for x0, y0, x1, y1, v in roads: road((x0, y0, x1, y1), v)
 # gate dirt runs into the avenue
@@ -181,7 +184,7 @@ for crop, at, fx in homes: building(crop, at, fx)
 
 # ---- a few trees and lamps between buildings ----
 pine = src.crop((1385, 885, 1440, 975))
-for x, y in [(250, 1040), (480, 1080), (1060, 1240 - 160), (1440, 1100), (270, 1400), (1340, 1330)]:
+for x, y in [(480, 1080), (1060, 1240 - 160), (1440, 1100), (1340, 1330)]:
     im.paste(pine, (x, y), feather(pine.size, 6, 20))
 d = ImageDraw.Draw(im)
 def lamp(x, y):
@@ -300,7 +303,7 @@ im.paste(apt, (ax, ay), am)
 d = ImageDraw.Draw(im)
 building((860, 680, 990, 850), (345, 1718), None)
 pine = src.crop((1385, 885, 1440, 975))
-for x, y in [(260, 1600), (470, 1610)]:
+for x, y in [(470, 1610)]:
     im.paste(pine, (x, y), feather(pine.size, 6, 20))
 d = ImageDraw.Draw(im)
 for x in (330, 700, 1030, 1350): lamp(x, 1862)
@@ -317,5 +320,30 @@ for x in (300, 520, 690, 840, 1020, 1180):  # in front of Cottage Row
     flower_bed(x, 1486, 34)
 for x in (300, 1180):                        # Garden Lane
     flower_bed(x, 1868, 34)
+
+# ---- two building lots, cleared from the western woods ----
+def lot(x0, y0, x1, y1):
+    g = tile_fill(grass, (x0, y0, x1, y1), 2).filter(ImageFilter.SMOOTH)
+    im.paste(g, (x0, y0), feather(g.size, 6, 22))
+    dd = ImageDraw.Draw(im)
+    for _ in range(40):
+        x, y = random.randint(x0 + 10, x1 - 10), random.randint(y0 + 10, y1 - 10)
+        dd.line([(x, y), (x, y - 3)], fill=(84, 140, 30))
+    # a "for sale" sign by the road
+    sx, sy = (x0 + x1) // 2, y1 - 30
+    dd.rectangle([sx - 2, sy, sx + 2, sy + 22], fill=(84, 52, 24))
+    sign(dd, sx, sy - 14, "Building lot", 11, minw=86)
+    # stakes and string marking the plot
+    for (px, py) in [(x0 + 16, y0 + 16), (x1 - 16, y0 + 16), (x0 + 16, y1 - 46), (x1 - 16, y1 - 46)]:
+        dd.rectangle([px - 2, py - 8, px + 2, py + 6], fill=(150, 104, 58))
+    dd.line([(x0 + 16, y0 + 12), (x1 - 16, y0 + 12)], fill=(230, 220, 200)); dd.line([(x0 + 16, y1 - 50), (x1 - 16, y1 - 50)], fill=(230, 220, 200))
+    dd.line([(x0 + 16, y0 + 12), (x0 + 16, y1 - 50)], fill=(230, 220, 200)); dd.line([(x1 - 16, y0 + 12), (x1 - 16, y1 - 50)], fill=(230, 220, 200))
+lot(4, 1296, 254, 1502)     # lot A, on Cottage Row
+lot(4, 1592, 254, 1886)     # lot B, on Garden Lane
+
+# ---- signpost to Riverton ----
+d = ImageDraw.Draw(im)
+d.rectangle([1478, 1846, 1482, 1888], fill=(84, 52, 24))
+sign(d, 1480, 1830, "To Riverton", 11, minw=84)
 im.save(os.path.join(HERE, '..', '..', 'public', 'assets', 'town.webp'), 'WEBP', quality=93, method=6)
 
