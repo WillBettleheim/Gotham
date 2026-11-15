@@ -4,6 +4,9 @@ import { TILE, T } from "./map.js";
 import { Population, WORKPLACES } from "./population.js";
 import { Life, ACTIVITIES } from "./life.js";
 import { Autonomy, GOAL_TYPES } from "./autonomy.js";
+import { Social } from "./social.js";
+import { World } from "./world.js";
+import { Disasters } from "./disasters.js";
 
 export const FOOD_PRICE = 8;
 const RENT = 15;
@@ -39,6 +42,9 @@ export class Society {
     this.population = new Population(this);
     this.life = new Life(this);
     this.autonomy = new Autonomy(this);
+    this.social = new Social(this);
+    this.world = new World(this);
+    this.disasters = new Disasters(this);
     personaFor = (id) => { const a = sim.agents.find((x) => x.id === id); return a ? sim.personaOf(a) : undefined; };
     this.addLaw({ type: "theft" }, "founding charter", true);
     this.addLaw({ type: "tax", param: 10 }, "founding charter", true);
@@ -53,6 +59,8 @@ export class Society {
     });
     this.life.initAgent(a);
     this.autonomy.initAgent(a);
+    this.social.initAgent(a);
+    this.world.initAgent(a);
   }
 
   on(fn) { this.listeners.push(fn); }
@@ -63,6 +71,7 @@ export class Society {
     const e = { who, t: this.sim.time, time: `Day ${Math.floor(this.sim.time / 1440) + 1} · ${hhmm(this.sim.time)}`, icon, text, kind };
     this.gazette.unshift(e);
     if (this.gazette.length > 120) this.gazette.pop();
+    this.social?.onGazette(e);
     this.emit("gazette", { entry: e, important });
   }
 
@@ -105,6 +114,7 @@ export class Society {
     for (const a of sim.agents) {
       a.hunger = clamp(a.hunger + dt * (a.state === "sleeping" ? 1.6 : 3.6) / 60);
       this.life.tick(a, dt);
+      this.world.tick(a, dt);
       if (a.state === "jailed") {
         a.mood = clamp(a.mood - dt * 0.01);
         if (time >= a.jailedUntil) this.release(a);
@@ -125,7 +135,7 @@ export class Society {
       } else a.working = false;
 
       // mood drifts toward how life is going
-      const target = 62 + (a.coins > 80 ? 10 : a.coins < 15 ? -18 : 0) + (a.hunger > 75 ? -22 : 0) + (a.debt > 0 ? -10 : 0) + (this.mayor === a.id ? 8 : 0) + this.life.moodTarget(a);
+      const target = 62 + (a.coins > 80 ? 10 : a.coins < 15 ? -18 : 0) + (a.hunger > 75 ? -22 : 0) + (a.debt > 0 ? -10 : 0) + (this.mayor === a.id ? 8 : 0) + this.life.moodTarget(a) + this.world.moodTarget(a) + (a.partner ? 4 : 0) + (this.disasters.active.length ? -6 : 0);
       a.mood = clamp(a.mood + (target - a.mood) * 0.004 * dt);
 
       // garden trespass
@@ -145,6 +155,8 @@ export class Society {
       } else a.flags.outAfterCurfew = 0;
     }
 
+    this.world.update(dt);
+    this.disasters.update(dt);
     // elections
     const e = this.election;
     if (e.phase === "idle" && time >= e.nextAt) this.startCampaign();
@@ -205,6 +217,7 @@ export class Society {
       }
     }
     this.population.onNewDay();
+    this.world.onNewDay();
     const st = this.population.stats();
     this.log("🌅", `A new day in Gotham. Population ${st.population}, ${st.unemployed} unemployed, ${st.openJobs} open jobs. Treasury: ${Math.round(this.treasury)} coins.`, "economy");
     sim.save();
@@ -263,6 +276,7 @@ export class Society {
   onArrive(a) {
     if (["cafe", "store", "bakery"].includes(a.place) && a.hunger > 45) this.eat(a);
     this.autonomy.onArrive(a);
+    this.world.onArrive(a);
     this.life.onArrive(a);
     if (a.candidate && this.election.phase === "rally" && a.place === "plaza" && a.speech) {
       a.bubble = { text: a.speech, until: this.sim.realTime + 14, born: this.sim.realTime, speech: true };
@@ -609,6 +623,10 @@ export class Society {
       this.election.phase !== "idle" ? `An election is underway. Candidates: ${this.election.candidates.map((x) => residentById(x.id).name).join(", ")}.` : "",
       this.life.situation(a),
       this.autonomy.situation(a),
+      this.world.situation(),
+      this.social.situation(a),
+      this.disasters.situation(),
+      a.sick ? "You're sick with a fever." : a.health < 50 ? "You're feeling a bit unwell." : "",
       a.plan?.wishes?.length ? `What you wanted to do today: ${a.plan.wishes.map((w) => ACTIVITIES[w]?.label ?? w).join("; ")}.` : "",
     ].filter(Boolean).join("\n");
   }
@@ -623,6 +641,9 @@ export class Society {
       population: this.population.serialize(),
       life: this.life.serialize(),
       autonomy: this.autonomy.serialize(),
+      social: this.social.serialize(),
+      world: this.world.serialize(),
+      disasters: this.disasters.serialize(),
     };
   }
   restore(s) {
@@ -632,6 +653,9 @@ export class Society {
     this.population.restore(s.population);
     this.life.restore(s.life);
     this.autonomy.restore(s.autonomy);
+    this.social.restore(s.social);
+    this.world.restore(s.world);
+    this.disasters.restore(s.disasters);
     if (s.election) { this.election.nextAt = s.election.nextAt ?? this.election.nextAt; this.election.history = s.election.history ?? []; }
     for (const a of this.sim.agents) if (s.agents?.[a.id]) Object.assign(a, s.agents[a.id]);
   }

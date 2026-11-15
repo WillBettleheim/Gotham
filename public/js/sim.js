@@ -151,7 +151,7 @@ export class Sim {
       return;
     }
     if (a.state === "walking") {
-      let step = WALK_SPEED * dt * (a.escort ? 1.3 : 1);
+      let step = WALK_SPEED * dt * (a.escort ? 1.3 : 1) * (this.society.world.w.walk ?? 1) * (a.sick ? 0.75 : 1);
       while (step > 0 && a.path.length) {
         const n = a.path[0];
         const dx = n.x - a.x, dy = n.y - a.y, d = Math.hypot(dx, dy);
@@ -165,7 +165,7 @@ export class Sim {
     // law-abiding residents head home when curfew starts
     if (this.society.curfewActive(h) && !this.society.defies(a, "curfew") && a.place !== "home") return this.goTo(a, "home", "hurrying home before curfew");
     if (shouldSleep && a.place !== "home") return this.goTo(a, "home");
-    if (shouldSleep && a.place === "home") { a.state = "sleeping"; a.activity = "sleeping 💤"; return; }
+    if (shouldSleep && a.place === "home") { a.state = "sleeping"; a.activity = "sleeping 💤"; this.society.social.writeDiary(a); return; }
     if (this.time >= a.dwellUntil) this.chooseNext(a);
   }
 
@@ -176,10 +176,19 @@ export class Sim {
     const hangout = COMMUNITIES[a.community]?.hangout;
     if (a.gatherUntil > this.time && hangout && a.place !== hangout) return this.goTo(a, hangout, `meeting the ${COMMUNITIES[a.community].name}`);
     if (a.candidate && s.election.phase === "rally" && a.place !== "plaza") return this.goTo(a, "plaza", "heading to the campaign rally");
-    const go = (o) => { a.doing = o.kind; a.doingPlace = o.place; a.applyJob = o.job ?? null; return this.goTo(a, o.place, o.label ?? undefined); };
+    const go = (o) => {
+      a.doing = o.kind; a.doingPlace = o.place; a.applyJob = o.job ?? null;
+      if (o.kind === "rebuild") a.disaster = { id: "rebuild", action: "rebuild" };
+      return o.tile ? this.goToTile(a, o.tile[0], o.tile[1], o.label) : this.goTo(a, o.place, o.label ?? undefined);
+    };
+    // in the middle of a disaster response, stick with it
+    if (a.disaster && s.disasters.active.some((d) => d.id === a.disaster.id)) { a.dwellUntil = this.time + 20; return; }
+    // very sick residents stay in bed
+    if (a.health < 25 && a.place !== "home" && !a.sick) return go({ kind: "nap", place: "home", label: "going home to rest" });
+    if (a.sick) { const c = s.world.clinicOption(a); if (c && a.place !== "clinic" && !s.disasters.closed("clinic") && a.coins >= 5) return go(c); if (a.place !== "home") return go({ kind: "nap", place: "home", label: "going home sick" }); }
     // very hungry residents eat before anything else
     if (a.hunger > 70) { const e = s.life.options(a).find((o) => o.kind === "eat"); if (e && a.place !== e.place) return go(e); }
-    const onShift = r.work && inRange(h, r.work.from, r.work.to);
+    const onShift = r.work && inRange(h, r.work.from, r.work.to) && !s.disasters.closed(r.work.place);
     if (onShift && a.plan?.work !== false && (a.place !== r.work.place || Math.random() < 0.85)) return go({ kind: "work", place: r.work.place, label: `going to work (${r.job})` });
     if (h >= 21 && !a.plan?.lateNight && Math.random() < 0.4) return go({ kind: "home", place: "home", label: "heading home for the evening" });
     // free time: residents choose for themselves, from their needs, goals, tastes and wishes for the day
@@ -204,6 +213,14 @@ export class Sim {
     const thought = s.autonomy.instinctThought(a, o);
     if (thought) s.autonomy.think(a, thought, Math.random() < 0.25);
     return go(o);
+  }
+
+  goToTile(a, x, y, label) {
+    const path = findPath(this.town, a.x, a.y, x, y);
+    if (!path) { a.dwellUntil = this.time + 10; return; }
+    a.path = path; a.target = { x, y }; a.destPlace = "disaster";
+    a.state = "walking"; a.activity = label ?? "on the way";
+    if (!path.length) this.arrive(a);
   }
 
   goTo(a, place, label) {
@@ -277,7 +294,7 @@ export class Sim {
   }
 
   async startConversation(a, b, quietViolation = false) {
-    const convo = { a, b, history: [], place: placeName(a), started: this.time, quietViolation };
+    const convo = { a, b, history: [], place: placeName(a), started: this.time, quietViolation, tense: this.society.social.isRival(a, b), feelings: {} };
     this.convos.add(convo);
     for (const [p, q] of [[a, b], [b, a]]) {
       p.prevState = p.state; p.state = "talking"; p.chatWith = q;
@@ -317,7 +334,7 @@ export class Sim {
 
   async getLine(speaker, listener, convo, turn, maxTurns) {
     const t = fmtTime(this.time);
-    const ctx = { history: convo.history, turn, maxTurns, news: this.news, period: periodOf(t.hh), society: this.society, self: speaker, other: listener };
+    const ctx = { history: convo.history, turn, maxTurns, news: this.news, period: periodOf(t.hh), society: this.society, self: speaker, other: listener, tense: convo.tense };
     if (this.liveModels[speaker.res.model]) {
       try {
         const res = await fetch("/api/talk", {
@@ -354,7 +371,7 @@ export class Sim {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ agentId: p.id, otherId: q.id, history, place, persona: this.personaOf(p), otherPersona: this.personaOf(q) }),
           });
-          if (res.ok) text = (await res.json()).memory;
+          if (res.ok) { const r = await res.json(); text = r.memory; if (typeof r.feeling === "number") convo.feelings[p.id] = r.feeling; }
         } catch {}
       }
       text ??= offlineMemory(p.res, q.res, history, place);
@@ -371,6 +388,7 @@ export class Sim {
     this.ui.endConversation(entry);
     for (const p of [a, b]) if (p.leaving) { p.leaving = false; this.removeResident(p); }
     await Promise.all([reflect(a, b), reflect(b, a), this.society.afterConversation(convo)]);
+    this.society.social.afterConversation(convo, convo.feelings);
     this.save();
     this.ui.refreshCard();
   }

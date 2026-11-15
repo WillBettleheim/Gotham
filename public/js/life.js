@@ -71,11 +71,12 @@ export class Life {
     // fishing: a bite now and then
     if (a.doing === "fish" && s === "idle" && a.place === "fishing") {
       a.bite = Math.random() < 0.02;
-      if (Math.random() < dt * 0.02 * (0.7 + a.likes.fish * 0.4)) this.catchFish(a);
+      if (Math.random() < dt * 0.02 * (0.7 + a.likes.fish * 0.4) * (this.society.world.w.fish ?? 1)) this.catchFish(a);
     }
     // gardening: plots grow vegetables
     if (a.doing === "garden" && s === "idle" && a.place === "cgarden") {
       a.gardenTime = (a.gardenTime ?? 0) + dt;
+      a.gardenTime += dt * ((this.society.world.w.garden ?? 1) - 1);
       if (a.gardenTime >= 35) { a.gardenTime = 0; const n = 1 + (Math.random() < 0.3 ? 1 : 0); a.inv.veg += n; a.vegGrown = (a.vegGrown ?? 0) + n; }
     }
   }
@@ -101,7 +102,7 @@ export class Life {
   onArrive(a) {
     const s = this.society;
     if ((a.place === "cmarket" || a.place === "market") && (a.inv.fish || a.inv.veg)) {
-      const bonus = this.event?.id === "marketday" ? 1.5 : 1;
+      const bonus = (this.event?.id === "marketday" ? 1.5 : 1) * this.society.disasters.marketFactor();
       const earned = Math.round((a.inv.fishValue + a.inv.veg * 3) * bonus);
       if (earned > 0) {
         a.coins += earned;
@@ -130,7 +131,17 @@ export class Life {
   options(a) {
     const s = this.society, opts = [];
     const auto = this.society.autonomy;
-    const add = (kind, score, place, label) => { if (score > 0) opts.push({ kind, score: score + (a.plan?.wishes?.includes(kind) ? 30 : 0) + auto.bias(a, kind), place, label }); };
+    const world = this.society.world, dis = this.society.disasters;
+    const add = (kind, score, place, label) => {
+      if (score <= 0 || dis.closed(place)) return;
+      const weather = place === "home" ? 1 : world.outdoorFactor(place);
+      opts.push({ kind, score: (score + (a.plan?.wishes?.includes(kind) ? 30 : 0) + auto.bias(a, kind)) * weather, place, label });
+    };
+    const clinic = world.clinicOption(a); if (clinic && !dis.closed("clinic")) opts.push(clinic);
+    const rebuild = dis.rebuildOption(a); if (rebuild) opts.push(rebuild);
+    // bad weather sends people indoors
+    if (world.w.outdoor < 0.6) add("socialize", 25, "cafe", "heading indoors to the Inn");
+    if (a.partner) { const p = this.sim.agents.find((o) => o.id === a.partner); if (p && p.state !== "sleeping" && p.place && p.place !== "home" && p.place !== "jail") add("socialize", 20 + (100 - a.social) * 0.4, p.place, `going to meet ${p.res.name}`); }
     const apply = auto.applyOption(a);
     if (apply) opts.push(apply);
     const ev = this.event;

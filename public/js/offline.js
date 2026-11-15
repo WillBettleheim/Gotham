@@ -31,6 +31,9 @@ export function offlineLine(speaker, listener, ctx) {
   let parts = [];
   if (last.endsWith("?")) parts.push(pick(Math.random() < 0.6 ? speaker.topics : answers));
   else parts.push(pick(reactions));
+  if (ctx.tense && Math.random() < 0.6) return { text: fill(pick(["Oh. It's you, {L}.", "I haven't forgotten what you did, {L}.", "Don't start with me today.", "You always think you're right, don't you?", "Whatever, {L}. I've got better things to do."])), end: turn >= 2 && Math.random() < 0.5 };
+  const gossip = ctx.society?.social?.gossipLine(ctx.self);
+  if (gossip && Math.random() < 0.3) return { text: gossip, end: false };
   const civic = ctx.society && ctx.self ? civicLine(ctx.society, ctx.self, listener) : null;
   if (civic && Math.random() < 0.45) parts = [pick(reactions), civic];
   else if (ctx.news?.length && Math.random() < 0.25) parts = [fill(pick(newsTake))];
