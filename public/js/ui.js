@@ -10,7 +10,7 @@ import { LOTS } from "./mapdata.js";
 import { BUILDINGS } from "./mapdata.js";
 
 const $ = (id) => document.getElementById(id);
-export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const portrait = (res, size = 60) => { const c = document.createElement("canvas"); c.width = size; c.height = size; drawPortrait(c, res); return c; };
 const bar = (v, color) => `<div class="bar" style="--c:${color}"><i style="width:${Math.max(0, Math.min(100, v))}%"></i></div>`;
 const hhmm = (min) => `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(Math.floor(min % 60)).padStart(2, "0")}`;
@@ -482,7 +482,7 @@ export function createUI() {
         param: d.param ? Number($("lawParam").value) : undefined,
         text: $("lawText").value.trim(),
         keywords: $("lawWords").value.split(","),
-        penalty: d.noPenalty ? undefined : { kind: $("lawPenaltyKind").value, amount: Math.max(1, Number($("lawAmount").value) || 1) },
+        penalty: d.noPenalty ? undefined : { kind: $("lawPenaltyKind").value, amount: Math.min($("lawPenaltyKind").value === "jail" ? 72 : 1000, Math.max(1, Math.round(Number($("lawAmount").value)) || 1)) },
       }, "you");
       $("lawText").value = ""; $("lawWords").value = "";
       for (const a of sim.agents) a.memories.push({ about: a.id, text: `The council passed a new law: ${society.laws.at(-1).text}`, time: hhmm(sim.time) });
