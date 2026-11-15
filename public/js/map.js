@@ -57,38 +57,39 @@ export function buildTown() {
   return town;
 }
 
-// ---------- A* pathfinding ----------
+// ---------- A* pathfinding (binary heap) ----------
 export function findPath(town, sx, sy, tx, ty) {
   sx = Math.round(sx); sy = Math.round(sy);
   if (!town.walkable(tx, ty)) return null;
-  const key = (x, y) => y * W + x;
-  const open = [{ x: sx, y: sy, f: 0 }];
-  const came = new Map();
-  const g = new Map([[key(sx, sy), 0]]);
-  const closed = new Set();
-  while (open.length) {
-    let bi = 0;
-    for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
-    const cur = open.splice(bi, 1)[0];
-    const ck = key(cur.x, cur.y);
-    if (cur.x === tx && cur.y === ty) {
+  if (sx === tx && sy === ty) return [];
+  const N = W * H, start = sy * W + sx, goal = ty * W + tx;
+  const g = new Float32Array(N).fill(Infinity), came = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+  const heap = [], f = [];   // heap of node ids ordered by f
+  const push = (n, fv) => { f[n] = fv; heap.push(n); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (f[heap[p]] <= fv) break; heap[i] = heap[p]; i = p; } heap[i] = n; };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { let i = 0; const n = heap.length; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < n && f[heap[l]] < f[last]) m = l; if (r < n && f[heap[r]] < (m === i ? f[last] : f[heap[m]])) m = r; if (m === i) break; heap[i] = heap[m]; i = m; } heap[i] = last; }
+    return top;
+  };
+  g[start] = 0; push(start, Math.abs(sx - tx) + Math.abs(sy - ty));
+  while (heap.length) {
+    const cur = pop();
+    if (cur === goal) {
       const path = [];
-      let k = ck;
-      while (k !== key(sx, sy)) { path.unshift({ x: k % W, y: Math.floor(k / W) }); k = came.get(k); }
-      return path;
+      for (let k = goal; k !== start; k = came[k]) path.push({ x: k % W, y: (k / W) | 0 });
+      return path.reverse();
     }
-    if (closed.has(ck)) continue;
-    closed.add(ck);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = cur.x + dx, ny = cur.y + dy;
+    if (closed[cur]) continue;
+    closed[cur] = 1;
+    const cx = cur % W, cy = (cur / W) | 0;
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + (d === 0 ? 1 : d === 1 ? -1 : 0), ny = cy + (d === 2 ? 1 : d === 3 ? -1 : 0);
       if (!town.walkable(nx, ny)) continue;
+      const n = ny * W + nx;
+      if (closed[n]) continue;
       const t = town.get(nx, ny);
-      const cost = t === TILE.PATH || t === TILE.BRIDGE ? 1 : t === TILE.DIRT ? 1.1 : 1.5;
-      const nk = key(nx, ny), ng = g.get(ck) + cost;
-      if (ng < (g.get(nk) ?? Infinity)) {
-        g.set(nk, ng); came.set(nk, ck);
-        open.push({ x: nx, y: ny, f: ng + Math.abs(nx - tx) + Math.abs(ny - ty) });
-      }
+      const ng = g[cur] + (t === TILE.PATH || t === TILE.BRIDGE ? 1 : t === TILE.DIRT ? 1.1 : 1.5);
+      if (ng < g[n]) { g[n] = ng; came[n] = cur; push(n, ng + Math.abs(nx - tx) + Math.abs(ny - ty)); }
     }
   }
   return null;
@@ -101,6 +102,14 @@ const loadImage = (src) => new Promise((resolve, reject) => {
   img.onerror = () => reject(new Error(`could not load ${src}`));
   img.src = src;
 });
+
+// After the picture changes (a new building), recompute depth and window lights.
+export function refreshDerived(ground, town) {
+  const g = ground.getContext("2d");
+  town.windows.length = 0;
+  findLights(g, town);
+  buildOcclusion(g, town);
+}
 
 export async function renderStatic(town) {
   const img = await loadImage(IMAGE);
