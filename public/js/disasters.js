@@ -156,7 +156,7 @@ export class Disasters {
         if (res.ok) {
           const r = await res.json();
           const i = menu.findIndex((m) => m.id === r.choice);
-          if (i >= 0) { choice = opts[i]; thought = r.thought; say = r.say; }
+          if (i >= 0) { choice = opts[i]; thought = r.thought ? String(r.thought).slice(0, 160) : null; say = r.say ? String(r.say).slice(0, 120) : null; }
         }
       } catch {}
     }
