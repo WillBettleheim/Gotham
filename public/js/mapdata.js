@@ -16,12 +16,12 @@ export const RECTS = {
     [41, 12, 2, 16],  // east road
     [23, 21, 2, 7],   // avenue to the south gate
     [24, 26, 18, 2],  // lower road (small house, clinic)
-    [16, 25, 8, 3],   // blacksmith yard
+    [16, 26, 8, 2],   // police station yard
     [17, 6, 2, 5],    // walk to the little red house
     [23, 9, 2, 2],    // town hall steps
     [34, 10, 1, 1],   // library steps
     [12, 10, 1, 1],   // general store porch
-    [11, 17, 3, 2],   // inn porch
+    [11, 18, 3, 1],   // inn front steps
     [28, 25, 1, 1], [35, 25, 1, 1], // house and clinic steps
     // South Gotham
     [23, 32, 2, 8],   // avenue from the gate
@@ -46,17 +46,15 @@ export const RECTS = {
   ],
   GRASS: [
     [20, 13, 3, 3], [25, 13, 3, 3], [20, 16, 3, 3], [25, 16, 3, 3], // plaza gardens
-    [10, 21, 1, 6], [8, 24, 2, 1], [11, 26, 1, 1], // garden path between the two cottages
-    [10, 49, 33, 1],  // verge between Cottage Row and the Garden District
     [23, 50, 5, 8],   // event lawn and stage in the Community Garden
-    [21, 49, 3, 1], [21, 58, 3, 1], // garden gates
+    [21, 49, 3, 1], [21, 58, 3, 1], [28, 49, 1, 1], // garden gates and the market path
     [28, 50, 1, 9],   // path between the garden and the market
   ],
   PLOT: [[16, 50, 7, 8]],   // Community Garden plots
   DOCK: [[5, 6, 3, 1], [3, 17, 3, 1]], // fishing docks: waterfall pond, river
   FIELD: [[41, 7, 7, 4]],
   FOUNTAIN: [[22, 15, 4, 2], [23, 14, 2, 4]],
-  BLOCK: [[35, 13, 4, 3], [32, 15, 3, 3]], // market stalls
+  BLOCK: [[35, 13, 4, 3], [32, 15, 3, 3], [9, 12, 8, 1]], // market stalls; grass strip and roof edge behind the Inn
   JAIL: [[43, 27, 4, 3]],
   YARD: [[46, 30, 2, 2]],
 };
@@ -69,16 +67,16 @@ export const HOMES = [
   { x: 17, y: 6, name: "the little red house" },           // 3 sage
   { x: 23, y: 10, name: "Town Hall (residence)" },         // 4 selene
   { x: 44, y: 6, name: "the barn" },                       // 5 hana
-  { x: 8, y: 24, name: "the red cottage by the river" },  // 6 hugo
-  { x: 11, y: 26, name: "the blue cottage" },              // 7 hazel
+  { x: 13, y: 47, name: "1 Cottage Row" },  // 6 hugo
+  { x: 18, y: 47, name: "2 Cottage Row" },              // 7 hazel
   { x: 28, y: 25, name: "the little house on the lower road" }, // 8 nova
   { x: 12, y: 10, name: "the General Store (upstairs)" },  // 9 gus
   { x: 39, y: 5, name: "the windmill" },                   // 10 dex
   { x: 44, y: 24, name: "the red cottage by the farm" },   // 11 lola
   { x: 13, y: 18, name: "the Inn (rented room)" },         // 12 mira
   // South Gotham's Cottage Row and the Garden District: room for newcomers
-  { x: 13, y: 47, name: "1 Cottage Row", capacity: 2 },
-  { x: 18, y: 47, name: "2 Cottage Row", capacity: 2 },
+  { x: 13, y: 47, name: "1 Cottage Row" },
+  { x: 18, y: 47, name: "2 Cottage Row" },
   { x: 23, y: 47, name: "3 Cottage Row", capacity: 2 },
   { x: 29, y: 47, name: "4 Cottage Row", capacity: 2 },
   { x: 33, y: 47, name: "5 Cottage Row", capacity: 2 },
@@ -94,7 +92,7 @@ export const DOORS = {
 
 // Standing spots for each kind of place: [x, y, w, h] areas; only walkable tiles count.
 export const PLACE_AREAS = {
-  cafe: [[10, 17, 5, 4]],          // the Inn
+  cafe: [[10, 18, 5, 3]],          // the Inn
   store: [[9, 10, 7, 3]],          // the General Store
   library: [[31, 10, 7, 3]],
   townhall: [[19, 9, 10, 3]],
@@ -102,7 +100,7 @@ export const PLACE_AREAS = {
   plaza: [[18, 12, 12, 8]],
   park: [[42, 13, 5, 3], [0, 13, 6, 3]], // notice board green and the bridge
   market: [[33, 12, 8, 7]],
-  police: [[16, 25, 8, 3]],        // the Police station yard
+  police: [[16, 26, 8, 2]],        // the Police station yard
   garden: [[41, 7, 7, 4]],
   clinic: [[33, 25, 5, 3]],
   jailyard: [[46, 30, 2, 2]],
