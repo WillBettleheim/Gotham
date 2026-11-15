@@ -162,15 +162,26 @@ function thinkPrompt(kind, r, b) {
     const ids = list(b.lawIds, 10).map((x) => clip(x, 20));
     const acts = Object.entries(b.activities && typeof b.activities === "object" ? b.activities : {}).slice(0, 12)
       .map(([k, v]) => `- "${clip(k, 20)}": ${clip(v, 80)}`).join("\n");
+    const goals = Object.entries(b.goals && typeof b.goals === "object" ? b.goals : {}).slice(0, 12)
+      .map(([k, v]) => `- "${clip(k, 20)}": ${clip(v, 80)}`).join("\n");
     return `${situation}
 
 It's morning. Decide how you'll spend today. You are completely free to choose, like a real person: work or skip work, follow the laws or break them, and spend your free time however you like. Choices have consequences: skipping work means no wages (and maybe a fine if work is mandatory), and breaking a law means a fine or jail if you're caught, which also hurts your reputation. Fishing and gardening can earn you something to sell or eat. Decide the way ${r.name} genuinely would.
 
 Things you could do in your free time:
 ${acts || "- (anything)"}
-
+${goals ? `\nYou don't have a personal goal right now. Pick one to work toward:\n${goals}\n` : ""}
 Reply with JSON only, no other text:
-{"work": true or false, "defy": [law types from ${JSON.stringify(ids)} you're willing to break today, or empty], "wishes": [up to 3 free-time activity ids from the list, most wanted first], "intention": "one short first-person sentence about your plan for today"}`;
+{"work": true or false, "defy": [law types from ${JSON.stringify(ids)} you're willing to break today, or empty], "wishes": [up to 3 free-time activity ids from the list, most wanted first], ${goals ? `"goal": "<goal id>", "why": "<why this goal matters to you, max 15 words>", "dream": "<your big life dream, max 15 words>", ` : ""}"intention": "one short first-person sentence about your plan for today"}`;
+  }
+  if (kind === "decide") {
+    const opts = list(b.options, 8).map((o) => `- "${clip(o.id, 4)}": ${clip(o.label, 90)}`).join("\n");
+    return `${situation}
+
+You have some free time right now. Nobody tells you what to do: you decide, like a real person, based on how you feel, your goal, your dream and your personality. These are the things you could do next:
+${opts}
+
+Reply with JSON only: {"choice": "<option id>", "thought": "<what you're thinking, first person, max 18 words>"}`;
   }
   if (kind === "speech") {
     return `${situation}
@@ -250,7 +261,7 @@ const server = http.createServer(async (req, res) => {
         return out ? send(res, 200, out) : send(res, 502, { error: "unparseable" });
       }
       const r = who(b.agentId, b.persona);
-      if (!r || !["plan", "speech", "vote", "propose"].includes(b.kind)) return send(res, 400, { error: "bad request" });
+      if (!r || !["plan", "decide", "speech", "vote", "propose"].includes(b.kind)) return send(res, 400, { error: "bad request" });
       if (!LIVE_MODELS[r.model]) return send(res, 503, { error: "offline" });
       const raw = await ask(r.model, personaPrompt(r), thinkPrompt(b.kind, r, b), 2000);
       if (b.kind === "speech") return send(res, 200, { text: raw?.replace(/^["“]|["”]$/g, "").trim() ?? null });

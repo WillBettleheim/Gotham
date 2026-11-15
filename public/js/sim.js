@@ -176,18 +176,34 @@ export class Sim {
     const hangout = COMMUNITIES[a.community]?.hangout;
     if (a.gatherUntil > this.time && hangout && a.place !== hangout) return this.goTo(a, hangout, `meeting the ${COMMUNITIES[a.community].name}`);
     if (a.candidate && s.election.phase === "rally" && a.place !== "plaza") return this.goTo(a, "plaza", "heading to the campaign rally");
-    const go = (o) => { a.doing = o.kind; a.doingPlace = o.place; return this.goTo(a, o.place, o.label ?? undefined); };
+    const go = (o) => { a.doing = o.kind; a.doingPlace = o.place; a.applyJob = o.job ?? null; return this.goTo(a, o.place, o.label ?? undefined); };
     // very hungry residents eat before anything else
     if (a.hunger > 70) { const e = s.life.options(a).find((o) => o.kind === "eat"); if (e && a.place !== e.place) return go(e); }
     const onShift = r.work && inRange(h, r.work.from, r.work.to);
     if (onShift && a.plan?.work !== false && (a.place !== r.work.place || Math.random() < 0.85)) return go({ kind: "work", place: r.work.place, label: `going to work (${r.job})` });
     if (h >= 21 && !a.plan?.lateNight && Math.random() < 0.4) return go({ kind: "home", place: "home", label: "heading home for the evening" });
-    // free time: residents choose for themselves, from their needs, tastes and wishes for the day
+    // free time: residents choose for themselves, from their needs, goals, tastes and wishes for the day
+    const ok = (o) => o && !(o.place === "garden" && r.work?.place !== "garden" && s.law("garden") && !s.defies(a, "garden")) && !(o.kind === "hangout" && o.place === a.place && Math.random() < 0.7);
+    // live AI models think it over and pick their own next move
+    if (s.autonomy.canDecide(a)) {
+      const menu = s.life.options(a).filter(ok).sort((x, y) => y.score - x.score).slice(0, 7);
+      if (menu.length > 1) {
+        a.deciding = true; a.dwellUntil = this.time + 25; a.activity = "thinking about what to do next 💭";
+        s.autonomy.decide(a, menu).then((o) => {
+          a.deciding = false;
+          if (a.state !== "idle") return;
+          go(o ?? s.life.choose(a) ?? { kind: "stroll", place: "plaza" });
+        });
+        return;
+      }
+    }
     let o = s.life.choose(a);
-    if (o?.place === "garden" && r.work?.place !== "garden" && s.law("garden") && !s.defies(a, "garden")) o = null;
-    if (o?.kind === "hangout" && o.place === a.place && Math.random() < 0.7) o = null;
+    if (!ok(o)) o = null;
     if (s.election.phase === "rally" && Math.random() < 0.35) o = { kind: "hangout", place: "plaza", label: "going to watch the campaign rally" };
-    return go(o ?? { kind: "stroll", place: "plaza" });
+    o ??= { kind: "stroll", place: "plaza" };
+    const thought = s.autonomy.instinctThought(a, o);
+    if (thought) s.autonomy.think(a, thought, Math.random() < 0.25);
+    return go(o);
   }
 
   goTo(a, place, label) {
