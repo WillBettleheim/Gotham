@@ -42,6 +42,27 @@ export class Population {
     this.arrivals = 0;
     this.departures = 0;
     this.departed = [];   // ids of residents who moved away
+    this.policy = "jobs"; // immigration: "open" | "jobs" | "closed"
+    this.grant = 0;       // welcome grant paid to newcomers from the treasury
+    this.extraUnits = 0;  // apartments added by the council
+    this.departures_log = [];
+  }
+
+  // ----- council decisions -----
+  setPolicy(p) {
+    if (!["open", "jobs", "closed"].includes(p) || p === this.policy) return;
+    this.policy = p;
+    const text = { open: "Gotham's borders are open: anyone who wants to move here is welcome.", jobs: "Gotham welcomes newcomers when there are jobs for them.", closed: "Gotham has closed its doors to newcomers." }[p];
+    this.society.log("🛂", `Immigration policy changed. ${text}`, "law", true);
+  }
+  setGrant(n) { this.grant = Math.max(0, Math.min(200, Number(n) || 0)); this.society.log("🎁", this.grant ? `Newcomers now receive a ${this.grant}-coin welcome grant from the treasury.` : "The welcome grant for newcomers was cancelled.", "law"); }
+  buildUnits() {
+    const cost = 250;
+    if (this.extraUnits >= 16) return "Gotham Heights can't take any more units.";
+    if (this.society.treasury < cost) return `The treasury needs ${cost} coins (it has ${Math.floor(this.society.treasury)}).`;
+    this.society.treasury -= cost; this.extraUnits += 4;
+    this.society.log("🏗️", `The council added 4 apartment units to Gotham Heights (${cost} coins from the treasury).`, "economy", true);
+    return null;
   }
 
   // ----- jobs -----
@@ -67,12 +88,13 @@ export class Population {
   // ----- housing -----
   homes() { return this.sim.town.houses; }
   occupants(i) { return this.sim.agents.filter((a) => a.res.home === i).length; }
+  capOf(i) { const h = this.homes()[i]; return (h.capacity ?? 1) + (/Gotham Heights/.test(h.name) ? this.extraUnits : 0); }
   freeHome() {
     const hs = this.homes();
-    for (let i = 0; i < hs.length; i++) if (this.occupants(i) < (hs[i].capacity ?? 1)) return i;
+    for (let i = 0; i < hs.length; i++) if (this.occupants(i) < this.capOf(i)) return i;
     return -1;
   }
-  capacity() { return this.homes().reduce((s, h) => s + (h.capacity ?? 1), 0); }
+  capacity() { return this.homes().reduce((s, _, i) => s + this.capOf(i), 0); }
 
   // ----- hourly / daily rhythm (called by Society) -----
   onHour(h) {
@@ -107,12 +129,16 @@ export class Population {
   }
 
   maybeArrive() {
+    if (this.policy === "closed") return;
     const home = this.freeHome();
     if (home < 0) return;
     const agents = this.sim.agents;
     const avgMood = agents.reduce((s, a) => s + a.mood, 0) / Math.max(1, agents.length);
     const jobs = this.openJobs();
-    const appeal = (jobs.length ? 0.45 : 0.1) + (avgMood - 50) / 120 + (this.society.law("curfew") ? -0.05 : 0) + (this.society.taxRate() > 0.2 ? -0.1 : 0);
+    if (this.policy === "jobs" && !jobs.length) return;
+    const disasters = this.society.disasters?.active.length ? -0.3 : 0;
+    const appeal = (jobs.length ? 0.45 : 0.1) + (avgMood - 50) / 120 + (this.society.law("curfew") ? -0.05 : 0) + (this.society.taxRate() > 0.2 ? -0.1 : 0)
+      + (this.policy === "open" ? 0.25 : 0) + Math.min(0.3, this.grant / 200) + disasters;
     if (Math.random() > appeal) return;
     this.arrive(home, jobs.sort(() => Math.random() - 0.5)[0]);
   }
@@ -144,6 +170,7 @@ export class Population {
     if (job) { res.work = { place: job.place, from: job.from, to: job.to, wage: job.wage }; res.job = job.title; res.weights[job.place] = 3; }
     const a = this.sim.addResident(res, true);
     a.x = 23; a.y = 46; // arrives through South Gotham
+    if (this.grant && this.society.treasury >= this.grant) { this.society.treasury -= this.grant; a.coins += this.grant; }
     this.arrivals++;
     this.society.log("🧳", `${name} (${MODELS[model].label}) moved into ${this.homes()[home].name}${job ? ` to work as ${job.title} at ${placeLabel(job.place)}` : " and is looking for work"}.`, "community", true, a.id);
     return a;
@@ -154,6 +181,7 @@ export class Population {
     this.departed.push(a.id);
     const why = !a.res.work ? "couldn't find work" : a.debt > 40 ? "was drowning in debt" : "was unhappy";
     this.society.log("🚚", `${a.res.name} moved away from Gotham because they ${why}.`, "community", true);
+    this.departures_log.unshift({ name: a.res.name, why, day: Math.floor(this.sim.time / 1440) + 1 });
     this.sim.removeResident(a);
   }
 
@@ -167,6 +195,7 @@ export class Population {
   serialize() {
     return {
       arrivals: this.arrivals, departures: this.departures, departed: this.departed,
+      policy: this.policy, grant: this.grant, extraUnits: this.extraUnits, departuresLog: this.departures_log.slice(0, 10),
       newcomers: this.sim.agents.filter((a) => a.res.newcomer).map((a) => a.res),
       jobs: Object.fromEntries(this.sim.agents.map((a) => [a.id, { work: a.res.work, job: a.res.job, skips: a.skips ?? 0 }])),
     };
@@ -174,6 +203,7 @@ export class Population {
   restore(s) {
     if (!s) return;
     this.arrivals = s.arrivals ?? 0; this.departures = s.departures ?? 0; this.departed = s.departed ?? [];
+    this.policy = s.policy ?? "jobs"; this.grant = s.grant ?? 0; this.extraUnits = s.extraUnits ?? 0; this.departures_log = s.departuresLog ?? [];
     for (const id of this.departed) { const a = this.sim.agents.find((x) => x.id === id); if (a) this.sim.removeResident(a, true); }
     for (const res of s.newcomers ?? []) if (!this.sim.agents.some((a) => a.id === res.id)) this.sim.addResident(res, false);
     for (const a of this.sim.agents) { const j = s.jobs?.[a.id]; if (j) { a.res.work = j.work; a.res.job = j.job; a.skips = j.skips; } }
