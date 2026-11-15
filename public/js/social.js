@@ -15,6 +15,8 @@ export class Social {
     a.knows = [];       // gossip: [{text, t, from}]
     a.diary = [];       // [{day, text}]
     a.chatLog = [];     // conversation with the player
+    a.lifeEvents = [];  // big moments: [{day, text}]
+    a.story = "";       // their life story so far, rewritten each night
     a.wroteDiaryDay = -1;
   }
 
@@ -87,8 +89,14 @@ export class Social {
     }
   }
   onGazette(entry) {
-    if (!["crime", "election", "community", "law", "disaster"].includes(entry.kind)) return;
     const who = entry.who && this.sim.agents.find((a) => a.id === entry.who);
+    // the resident it happened to remembers it as a big moment in their life
+    if (who && ["crime", "election", "community", "work", "disaster"].includes(entry.kind) && !/thinks|caught a (minnow|perch)/.test(entry.text)) {
+      const day = Math.floor(this.sim.time / 1440) + 1;
+      if (!who.lifeEvents.some((e) => e.text === entry.text)) who.lifeEvents.push({ day, text: entry.text });
+      if (who.lifeEvents.length > 16) who.lifeEvents.shift();
+    }
+    if (!["crime", "election", "community", "law", "disaster"].includes(entry.kind)) return;
     this.spread(entry.text.replace(/\s*\(you decide.*\)$/, ""), who ? [who] : [], who);
     if (["election", "law", "disaster"].includes(entry.kind)) for (const o of this.sim.agents) if (Math.random() < 0.5) this.learn(o, entry.text);
   }
@@ -112,6 +120,31 @@ export class Social {
     text ||= this.instinctDiary(a);
     a.diary.unshift({ day, text: String(text).slice(0, 600) });
     if (a.diary.length > 7) a.diary.pop();
+    this.updateStory(a);
+  }
+
+  // fold the big moments into a short life story that persists for days
+  async updateStory(a) {
+    if (!a.lifeEvents.length && a.story) return;
+    let text = null;
+    if (this.sim.liveModels[a.res.model]) {
+      try {
+        const res = await fetch("/api/think", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          kind: "story", agentId: a.id, persona: this.sim.personaOf(a), situation: this.society.situation(a),
+          story: a.story, events: a.lifeEvents.slice(-10).map((e) => `Day ${e.day}: ${e.text}`), diary: a.diary[0]?.text ?? "",
+        }) });
+        if (res.ok) text = (await res.json()).text;
+      } catch {}
+    }
+    a.story = String(text || this.instinctStory(a)).slice(0, 700);
+  }
+  instinctStory(a) {
+    const days = Math.floor(this.sim.time / 1440) + 1;
+    const bits = [`I've lived in Gotham for ${days} day${days > 1 ? "s" : ""}, working as ${a.res.job.toLowerCase()}.`];
+    for (const e of a.lifeEvents.slice(-4)) bits.push(`On day ${e.day}: ${e.text.replace(new RegExp(`^${a.res.name}\\b`), "I")}`);
+    if (a.partner) bits.push(`I'm with ${this.sim.agents.find((o) => o.id === a.partner)?.res.name ?? "someone special"}.`);
+    if (a.dream) bits.push(`I dream to ${a.dream.charAt(0).toLowerCase()}${a.dream.slice(1)}`);
+    return bits.join(" ");
   }
   instinctDiary(a) {
     const mood = a.mood > 70 ? "a really good day" : a.mood > 45 ? "an ordinary day" : "a rough day";
@@ -166,6 +199,7 @@ export class Social {
     const rivals = Object.entries(a.bond).filter(([, v]) => v <= -25).map(([id]) => named(id)).filter(Boolean);
     const recent = a.knows.slice(0, 3).map((k) => k.text);
     return [
+      a.story ? `Your life story so far: ${a.story}` : "",
       a.partner ? `You're in a relationship with ${named(a.partner)}.` : "",
       close.length ? `Your friends: ${close.join(", ")}.` : "",
       rivals.length ? `People you don't get along with: ${rivals.join(", ")}.` : "",
@@ -173,6 +207,6 @@ export class Social {
     ].filter(Boolean).join("\n");
   }
 
-  serialize() { return Object.fromEntries(this.sim.agents.map((a) => [a.id, { bond: a.bond, partner: a.partner, knows: a.knows.slice(0, 6), diary: a.diary, chatLog: a.chatLog.slice(-10) }])); }
+  serialize() { return Object.fromEntries(this.sim.agents.map((a) => [a.id, { bond: a.bond, partner: a.partner, knows: a.knows.slice(0, 6), diary: a.diary, chatLog: a.chatLog.slice(-10), lifeEvents: a.lifeEvents, story: a.story }])); }
   restore(s) { for (const a of this.sim.agents) if (s?.[a.id]) Object.assign(a, s[a.id]); }
 }
