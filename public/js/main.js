@@ -1,10 +1,11 @@
-import { T, W, H, buildTown, renderStatic, riverX } from "./map.js";
+import { T, W, H, buildTown, renderStatic, riverX, refreshDerived } from "./map.js";
 import { drawCharacter, roundRect } from "./sprites.js";
 import { MODELS, COMMUNITIES } from "./residents.js";
 import { Sim, fmtTime, periodOf } from "./sim.js";
 import { createUI } from "./ui.js";
 import { Sound } from "./sound.js";
-import { FLOOD_ZONE } from "./mapdata.js";
+import { FLOOD_ZONE, BUILDINGS, LOTS } from "./mapdata.js";
+import { PROJECTS } from "./construction.js";
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
@@ -32,6 +33,7 @@ fetch("/api/status").then((r) => r.json()).then((s) => {
 }).catch(() => { $("mode").textContent = "Offline chatter"; $("mode").className = "badge off"; })
   .finally(() => sim.start());
 
+$("fullBtn").onclick = () => { document.body.classList.toggle("mapfull"); setTimeout(resize, 30); };
 $("resetBtn").onclick = () => { if (confirm("Start Gotham over? All memories, money, laws and elections will be wiped.")) sim.reset(); };
 
 // fireworks when a mayor is elected
@@ -177,6 +179,10 @@ function endPointer(e) {
         if (d < bd) { bd = d; best = a; }
       }
       ui.select(best);
+      if (!best) {
+        const bld = [...BUILDINGS].reverse().find((b) => b.rect && wx >= b.rect[0] && wx <= b.rect[0] + b.rect[2] && wy >= b.rect[1] && wy <= b.rect[1] + b.rect[3]);
+        ui.peek(bld ?? null, p.x + 12, p.y + 12);
+      } else ui.peek(null);
     }
   }
   drag = null;
@@ -199,6 +205,10 @@ const miniScale = mini.width / (W * T);
 const miniBase = document.createElement("canvas");
 miniBase.width = mini.width; miniBase.height = mini.height;
 miniBase.getContext("2d").drawImage(layers.ground, 0, 0, mini.width, mini.height);
+sim.society.construction.attach(layers.ground, () => {
+  refreshDerived(layers.ground, town);
+  miniBase.getContext("2d").drawImage(layers.ground, 0, 0, mini.width, mini.height);
+});
 let miniLast = 0;
 function drawMinimap(now) {
   if (now - miniLast < 200) return;
@@ -284,7 +294,10 @@ function frame(now) {
   if (sim.society.election.phase !== "idle") drawBunting(t);
   if (sim.society.life.event?.active && !sim.society.life.event.place) drawEventLights(t, sim.society.life.event);
 
-  const visible = sim.agents.filter((a) => a.visible).sort((a, b) => a.y - b.y);
+  const vx0 = cam.x / T - 2, vy0 = cam.y / T - 2, vx1 = (cam.x + vw / cam.zoom) / T + 2, vy1 = (cam.y + vh / cam.zoom) / T + 3;
+  const onScreen = (a) => a.x >= vx0 && a.x <= vx1 && a.y >= vy0 && a.y <= vy1;
+  const merchant = sim.society.riverton.merchant;
+  const visible = [...sim.agents.filter((a) => a.visible && onScreen(a)), ...(merchant && onScreen(merchant) ? [merchant] : [])].sort((a, b) => a.y - b.y);
   for (const a of sim.agents) a.isMayor = sim.society.mayor === a.id;
   for (const a of visible) {
     if (a === selected) {
@@ -294,6 +307,7 @@ function frame(now) {
     drawCharacter(ctx, a, t);
     drawOccluders(a);
   }
+  drawSites(t);
   drawDisasters(dt, t);
   drawSmoke(dt, t);
   drawClouds(t);
@@ -304,6 +318,7 @@ function frame(now) {
   if (dark > 0.3 && weather !== "storm" && weather !== "rain") drawFireflies(t, dark);
   drawSparks(dt);
   drawWeather(dt, t, weather, world.season.id);
+  drawAmbient(dt, t, world.season.id, weather, darkness(sim.time));
   // lightning
   const flash = sim.society.disasters.flash;
   if (flash > 0.95 && lastFlash < 0.5) sound.play("thunder");
@@ -428,6 +443,84 @@ function drawOccluders(a) {
   a.hiddenBehind = covered > 220;
   occCtx.putImageData(occImg, 0, 0);
   ctx.drawImage(occBuf, x0, y0);
+}
+
+// ---------- construction sites ----------
+function drawSites(t) {
+  const c = sim.society.construction;
+  for (const [lotId, site] of Object.entries(c.sites)) {
+    const lot = LOTS.find((l) => l.id === lotId), p = PROJECTS[site.project];
+    const [x, y, w, h] = c.rectFor(lot, p);
+    const built = Math.max(0.05, site.progress);
+    // foundation and the rising frame
+    ctx.fillStyle = "#8a7a62"; ctx.fillRect(x, y + h - 10, w, 10);
+    const top = y + h - h * built;
+    ctx.fillStyle = "rgba(196,150,96,0.85)"; ctx.fillRect(x + 6, top, w - 12, y + h - 10 - top);
+    ctx.strokeStyle = "#5e3a1f"; ctx.lineWidth = 3;
+    for (let k = x + 6; k <= x + w - 6; k += 28) { ctx.beginPath(); ctx.moveTo(k, y + h - 10); ctx.lineTo(k, top); ctx.stroke(); }
+    for (let r = y + h - 10; r > top; r -= 26) { ctx.beginPath(); ctx.moveTo(x + 6, r); ctx.lineTo(x + w - 6, r); ctx.stroke(); }
+    ctx.strokeStyle = "rgba(94,58,31,0.6)"; ctx.lineWidth = 1.5;
+    for (let k = x + 6; k < x + w - 30; k += 28) for (let r = y + h - 10; r > top + 26; r -= 26) { ctx.beginPath(); ctx.moveTo(k, r); ctx.lineTo(k + 28, r - 26); ctx.stroke(); }
+    // a little crane
+    const cx = x + w - 30, cy = top - 30;
+    ctx.strokeStyle = "#e0a42a"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(cx, y + h - 10); ctx.lineTo(cx, cy); ctx.lineTo(cx - 70, cy); ctx.stroke();
+    const swing = Math.sin(t) * 8;
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx - 50, cy); ctx.lineTo(cx - 50 + swing, cy + 34); ctx.stroke();
+    ctx.fillStyle = "#7a4f2a"; ctx.fillRect(cx - 58 + swing, cy + 34, 16, 8);
+    // sign with progress
+    ctx.fillStyle = "rgba(20,14,10,0.75)"; ctx.fillRect(x + w / 2 - 70, y + h - 46, 140, 30);
+    ctx.fillStyle = "#f6e7c8"; ctx.font = "bold 12px Nunito, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(`🏗️ ${p.name}`, x + w / 2, y + h - 38);
+    ctx.fillStyle = "#333"; ctx.fillRect(x + w / 2 - 60, y + h - 27, 120, 6);
+    ctx.fillStyle = "#f2b843"; ctx.fillRect(x + w / 2 - 60, y + h - 27, 120 * site.progress, 6);
+  }
+}
+
+// ---------- ambient life: butterflies, birds, falling leaves ----------
+const butterflies = Array.from({ length: 14 }, (_, i) => ({ zone: i % 3, p: Math.random() * 10, hue: [50, 330, 200, 30, 280][i % 5] }));
+const ZONES = [[640, 410, 260, 200], [520, 1610, 380, 250], [60, 160, 200, 140]];
+const birds = [];
+const leaves = [];
+function drawAmbient(dt, t, season, weather, dark) {
+  const calm = weather === "sunny" || weather === "cloudy";
+  if (dark < 0.3 && calm && (season === "spring" || season === "summer")) {
+    for (const b of butterflies) {
+      const [zx, zy, zw, zh] = ZONES[b.zone];
+      const x = zx + zw / 2 + Math.sin(t * 0.4 + b.p) * zw * 0.45 + Math.sin(t * 1.7 + b.p * 3) * 12;
+      const y = zy + zh / 2 + Math.cos(t * 0.33 + b.p * 2) * zh * 0.4 + Math.sin(t * 2.3 + b.p) * 8;
+      const flap = Math.abs(Math.sin(t * 14 + b.p * 5));
+      ctx.fillStyle = `hsl(${b.hue}, 85%, 65%)`;
+      ctx.beginPath(); ctx.ellipse(x - 2, y, 3 * flap + 0.5, 2.5, -0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x + 2, y, 3 * flap + 0.5, 2.5, 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#2a1d14"; ctx.fillRect(x - 0.5, y - 2, 1, 4);
+    }
+  }
+  // a flock now and then
+  if (dark < 0.3 && weather !== "storm" && Math.random() < dt * 0.02 && birds.length === 0) {
+    const y0 = cam.y + Math.random() * (vh / cam.zoom);
+    for (let i = 0; i < 5 + Math.floor(Math.random() * 4); i++) birds.push({ x: cam.x - 40 - i * 18, y: y0 + Math.abs(i - 3) * 10, v: 60 + Math.random() * 10, p: Math.random() * 6 });
+  }
+  ctx.strokeStyle = "rgba(30,30,40,0.75)"; ctx.lineWidth = 1.5;
+  for (let i = birds.length - 1; i >= 0; i--) {
+    const b = birds[i];
+    b.x += b.v * dt * 2; b.y -= dt * 4;
+    const wing = Math.sin(t * 10 + b.p) * 3;
+    ctx.beginPath(); ctx.moveTo(b.x - 5, b.y - wing); ctx.lineTo(b.x, b.y); ctx.lineTo(b.x + 5, b.y - wing); ctx.stroke();
+    if (b.x > cam.x + vw / cam.zoom + 60) birds.splice(i, 1);
+  }
+  // autumn leaves drift across the screen
+  if (season === "autumn") {
+    ctx.save(); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    while (leaves.length < 26) leaves.push({ x: Math.random() * vw, y: Math.random() * vh, r: Math.random() * 6, c: ["#d97a2b", "#c2410c", "#e8a33d", "#a3501c"][leaves.length % 4] });
+    for (const l of leaves) {
+      l.y += 0.6 + Math.sin(t + l.r) * 0.3; l.x += Math.sin(t * 0.8 + l.r) * 0.8 + 0.3; l.r += 0.03;
+      if (l.y > vh) { l.y = -10; l.x = Math.random() * vw; }
+      ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.r); ctx.fillStyle = l.c;
+      ctx.beginPath(); ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    ctx.restore();
+  } else leaves.length = 0;
 }
 
 // ---------- disasters on the map ----------
