@@ -7,6 +7,7 @@ import { Autonomy, GOAL_TYPES } from "./autonomy.js";
 import { Social } from "./social.js";
 import { World } from "./world.js";
 import { Disasters } from "./disasters.js";
+import { Stats } from "./stats.js";
 
 export const FOOD_PRICE = 8;
 const RENT = 15;
@@ -45,6 +46,7 @@ export class Society {
     this.social = new Social(this);
     this.world = new World(this);
     this.disasters = new Disasters(this);
+    this.stats = new Stats(this);
     personaFor = (id) => { const a = sim.agents.find((x) => x.id === id); return a ? sim.personaOf(a) : undefined; };
     this.addLaw({ type: "theft" }, "founding charter", true);
     this.addLaw({ type: "tax", param: 10 }, "founding charter", true);
@@ -187,6 +189,7 @@ export class Society {
     this.population.onHour(h);
     this.life.onHour(h);
     this.autonomy.checkGoals();
+    this.stats.onHour();
     if (h === 0) this.newDay();
   }
 
@@ -644,6 +647,7 @@ export class Society {
       social: this.social.serialize(),
       world: this.world.serialize(),
       disasters: this.disasters.serialize(),
+      stats: this.stats.serialize(),
     };
   }
   restore(s) {
@@ -656,6 +660,7 @@ export class Society {
     this.social.restore(s.social);
     this.world.restore(s.world);
     this.disasters.restore(s.disasters);
+    this.stats.restore(s.stats);
     if (s.election) { this.election.nextAt = s.election.nextAt ?? this.election.nextAt; this.election.history = s.election.history ?? []; }
     for (const a of this.sim.agents) if (s.agents?.[a.id]) Object.assign(a, s.agents[a.id]);
   }
