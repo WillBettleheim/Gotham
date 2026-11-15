@@ -6,7 +6,8 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "offline": "AI_TOWN_OFFLINE=1 node server.js"
+    "offline": "AI_TOWN_OFFLINE=1 node server.js",
+    "test": "node --test tests/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0"
