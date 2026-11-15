@@ -19,13 +19,44 @@ before(async () => {
 });
 after(() => server?.kill());
 
-const call = (method, p, body) => new Promise((resolve, reject) => {
-  const req = http.request({ host: "127.0.0.1", port: PORT, path: p, method, headers: { "Content-Type": "application/json" } }, (res) => {
-    let data = ""; res.on("data", (c) => (data += c)); res.on("end", () => resolve({ status: res.statusCode, body: data }));
+const call = (method, p, body, headers = {}) => new Promise((resolve, reject) => {
+  const req = http.request({ host: "127.0.0.1", port: PORT, path: p, method, headers: { "Content-Type": "application/json", ...headers } }, (res) => {
+    let data = ""; res.on("data", (c) => (data += c)); res.on("end", () => resolve({ status: res.statusCode, body: data, headers: res.headers }));
   });
   req.on("error", reject);
-  if (body) req.write(JSON.stringify(body));
+  if (body !== undefined) req.write(typeof body === "string" ? body : JSON.stringify(body));
   req.end();
+});
+
+test("other websites can't use the API through your browser", async () => {
+  const evil = { Origin: "https://evil.example" };
+  assert.equal((await call("POST", "/api/budget", { usd: 99999 }, evil)).status, 403);
+  assert.equal((await call("POST", "/api/talk", { speakerId: "sonny", listenerId: "mira" }, { "Sec-Fetch-Site": "cross-site" })).status, 403);
+  assert.equal((await call("GET", "/api/status", undefined, { Host: "attacker.example:3917" })).status, 403, "DNS rebinding");
+  assert.equal((await call("POST", "/api/budget", { usd: 5 }, { "Content-Type": "text/plain" })).status, 415, "no simple cross-site POSTs");
+  assert.equal((await call("GET", "/api/status", undefined, { Origin: `http://127.0.0.1:${PORT}` })).status, 200, "the town's own page is fine");
+});
+
+test("broken or hostile request bodies get clean errors", async () => {
+  assert.equal((await call("POST", "/api/think", "{not json")).status, 400);
+  assert.equal((await call("POST", "/api/think", "null")).status, 400);
+  assert.equal((await call("POST", "/api/think", "[1,2]")).status, 400);
+  assert.equal((await call("POST", "/api/think", JSON.stringify({ kind: "x".repeat(200_000) }))).status, 413);
+  assert.equal((await call("POST", "/api/chat", { agentId: "n_x", persona: { model: "constructor" }, message: "hi" })).status, 400, "prototype keys aren't models");
+  assert.equal((await call("GET", "/%E0%A4%A")).status, 400, "malformed URL encoding");
+  assert.equal((await call("GET", "/api/nothing")).status, 404);
+  assert.equal(JSON.parse((await call("GET", "/api/status")).body).stats.errors, 0, "none of that counted as a server error");
+});
+
+test("pages carry security headers and hidden files stay hidden", async () => {
+  const r = await call("GET", "/");
+  assert.match(r.headers["content-security-policy"], /script-src 'self'/);
+  assert.equal(r.headers["x-content-type-options"], "nosniff");
+  assert.equal(r.headers["x-frame-options"], "DENY");
+  assert.equal((await call("GET", "/.env")).status, 404);
+  assert.equal((await call("GET", "/js/../../.env")).status, 404);
+  assert.equal((await call("GET", "/assets/town.webp")).headers["content-type"], "image/webp");
+  assert.equal((await call("POST", "/index.html", {})).status, 405);
 });
 
 test("status reports offline mode and cost tracking", async () => {
