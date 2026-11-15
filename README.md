@@ -4,6 +4,8 @@ A cozy 2D town where AI characters live together. Residents run on AI models fro
 
 ![Gotham](https://img.shields.io/badge/residents-13-ffcf6e) ![models](https://img.shields.io/badge/models-Claude%20·%20Gemini%20·%20GPT%20·%20DeepSeek%20·%20Llama%20·%20Mistral-a78bfa)
 
+Made by [WillBettleheim](https://github.com/WillBettleheim).
+
 ## Run it
 
 ```bash
@@ -122,6 +124,19 @@ npm test
 ```
 
 Map tests check that every home, place, door, lot and the Riverton road can be reached and that paths stay on walkable ground. A headless simulation runs the town for three days, every disaster, construction and immigration, and checks that every number stays sane. Server tests cover offline mode, bad requests, the spending cap, path traversal and the provider client. Pathfinding uses A* with a binary heap: 441 home-to-home routes take about 40 ms, and the renderer skips anything off screen.
+
+## Security
+
+Gotham is built to run on your own computer with your own API keys, and the server guards them:
+
+- It listens on `127.0.0.1` only, so other devices on your network can't reach it. Set `HOST=0.0.0.0` to share it on purpose (and set `AI_BUDGET_USD` when you do).
+- The API only answers the town's own page: requests from other websites, wrong `Host` headers (DNS rebinding) and non-JSON posts are refused, so a page you visit can't spend your credits.
+- Model calls are capped per minute (`AI_MAX_CALLS_PER_MINUTE`, default 60), queue length is limited, and the spending cap stops all calls once it's reached.
+- Request bodies are size-limited and validated; bad input gets a clean 4xx instead of a crash.
+- Static files are served only from `public/`, with no hidden files and no path tricks.
+- Every reply from a model is stripped of HTML before it reaches the page, the page escapes everything it shows, and a strict Content Security Policy blocks injected scripts.
+- Laws proposed by the mayor's model are checked: unknown law types are ignored and numbers are kept in range.
+- API keys live only in `.env` (ignored by git) and never leave the server.
 
 ## Controls
 
