@@ -82,7 +82,7 @@ export const HOMES = [
   { x: 33, y: 47, name: "5 Cottage Row", capacity: 2 },
   { x: 39, y: 47, name: "6 Cottage Row", capacity: 2 },
   { x: 12, y: 59, name: "7 Garden Lane", capacity: 2 },
-  { x: 38, y: 59, name: "the Apartments", capacity: 8 },
+  { x: 38, y: 59, name: "Gotham Heights apartments", capacity: 12 },
 ];
 
 // Building doors used by the simulation.
@@ -134,7 +134,7 @@ export const BUILDINGS = [
   { name: "the School", place: "school", rect: [540, 1030, 190, 186], door: [19, 38] },
   { name: "the Bank", place: "bank", rect: [820, 1000, 250, 216], door: [29, 38] },
   { name: "the Post Office", place: "post", rect: [1110, 976, 200, 240], door: [38, 38] },
-  { name: "the Apartments", place: "apartments", rect: [1145, 1668, 230, 220], door: [38, 59] },
+  { name: "Gotham Heights", place: "apartments", rect: [1126, 1590, 250, 298], door: [38, 59] },
 ];
 // Riverside walkways that a flood swamps.
 export const FLOOD_ZONE = [[0, 13, 8, 8], [3, 17, 3, 1], [5, 6, 3, 1], [6, 11, 2, 10]];
