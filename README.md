@@ -61,7 +61,9 @@ Free model names change often, so every model can be overridden in `.env` (see `
 
 Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`). The streets, doors, plaza, market, fields and river are traced from it in `public/js/mapdata.js`, so residents walk the real cobblestone roads and go in and out of the buildings you see. Animated water, fountain spray, chimney smoke, ducks, drifting clouds and fireflies are layered on top, and at night the picture's own windows and street lamps glow. Places: Town Hall (with the court), General Store, Library, Inn, Fountain Plaza, Market, the river and bridge, the Police station, Clinic, the farm with its barn and windmill, and the Jail in the south-east clearing.
 
-Beyond the town gate lies **South Gotham**, a newer district built from pieces of the same picture: the Bakery, School, Bank and Post Office on High Street, and six homes on Cottage Row for newcomers.
+There are fishing docks at the waterfall pond and on the river beside the west road.
+
+Beyond the town gate lies **South Gotham**, a newer district built from pieces of the same picture: the Bakery, School, Bank and Post Office on High Street, and six homes on Cottage Row for newcomers. Further south, the **Garden District** has the fenced Community Garden (crop plots, a stage and an event lawn), the Citizens' Market, a cottage and an Apartments building for eight.
 
 To use a different picture, replace `town.webp` and re-trace the rectangles in `mapdata.js`.
 
@@ -75,6 +77,9 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Crime and punishment:** lawbreakers get caught more often when others are nearby. Caught residents pay the fine; if they can't, they go to jail. Jail time means an escort to the Jail, no wages, a lost vote, and a hit to reputation and mood. Repeat offenders pay 50% more each time.
 - **Communities:** Lantern Society (order), Hearth & Harvest (food and fairness), Tinkerers' Union (work and progress) and Free Spirits (freedom and art). They meet up in the evenings, vote as blocs, help broke friends, and unhappy members may follow a friend to another community.
 - **Elections:** every two game days, each community nominates a candidate. There's a campaign, a rally in the plaza with speeches, then everyone votes (live residents vote with their own model and say why). The mayor earns a salary from the treasury and proposes a law change that you approve or reject.
+- **Free time:** residents have needs (hunger, energy, social, fun, money) and tastes of their own. In their free time they choose what to do, like real people: go fishing, grow vegetables, sell their catch at the market, cook at home, shop, read, take walks, nap, look for friends, or join an event. Each morning live AI models pick their own wishes for the day.
+- **Fishing and gardening:** fish range from minnows to the rare golden carp; garden plots grow vegetables. Sell them at the markets or cook them at home.
+- **Community events:** every evening the Community Garden hosts something: a Garden Party, Music Night, a Fishing Contest (the winner takes 30 coins), Market Day (better prices) or a Harvest Festival (a free feast).
 - **Jobs:** 12 workplaces (Town Hall, Library, General Store, Inn, Police, Clinic, Market, farm, Bakery, School, Bank, Post Office), each with its own pay, hours and number of positions. Dex is the police officer (lawbreakers near him get caught more often) and Orion is the town doctor. Skip three shifts and you're fired.
 - **Population:** newcomers running on any of the models move to town when there are free homes and open jobs, and Gotham is a nice place to live. The unemployed look for work every morning. Residents who stay miserable, broke or jobless for days pack up and move away.
 - **Live tab:** every conversation as it happens, arrests in progress, the election, and what each resident is doing right now. Click anyone to follow them.
@@ -96,10 +101,11 @@ providers.js         Gemini, GPT, DeepSeek, Llama and Mistral (OpenAI-style chat
 public/js/residents.js  who lives here (personas, schedules, looks), shared by server and browser
 public/js/mapdata.js streets, doors, homes and places traced from the town picture
 public/js/map.js     builds the walkable grid, A* pathfinding, loads the picture, finds window lights, draws the jail
-public/js/sprites.js procedurally drawn characters
+public/js/sprites.js characters: proportions, shading, faces, hairstyles, job outfits and props
 public/js/sim.js     daily routines, free-will choices, movement, conversations, memories
 public/js/society.js economy, laws, crime, jail, communities, elections, gazette
 public/js/population.js workplaces and jobs, hiring and firing, newcomers, housing, moving away
+public/js/life.js    needs, free-time choices, fishing, gardening, market trading, daily events
 public/js/offline.js built-in chatter for offline mode
 public/js/ui.js      sidebar tabs (Live, Town, Chats, Laws, Politics, Gazette), resident card, toasts
 public/js/main.js    rendering, lighting, weather, fireworks and camera
