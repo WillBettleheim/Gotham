@@ -194,8 +194,8 @@ function frame(now) {
       ctx.beginPath(); ctx.ellipse((a.x + 0.5) * T, (a.y + 0.5) * T + 10, 13, 5, 0, 0, Math.PI * 2); ctx.stroke();
     }
     drawCharacter(ctx, a, t);
+    drawOccluders(a);
   }
-  ctx.drawImage(layers.canopy, 0, 0);
   drawSmoke(dt, t);
   drawClouds(t);
 
@@ -285,6 +285,38 @@ function drawEventLights(t, ev) {
       ctx.fillText(i % 2 ? "♪" : "♫", 790 + Math.sin(t + i * 2) * 40 + i * 8, 1620 - p * 50);
     }
   }
+}
+
+// Redraw the parts of the picture that stand in front of a resident (trees, roofs, walls, posts),
+// so people walking behind them are hidden like they would be in real life.
+const OW = 72, OH = 64;
+const occBuf = document.createElement("canvas"); occBuf.width = OW; occBuf.height = OH;
+const occCtx = occBuf.getContext("2d");
+const occImg = occCtx.createImageData(OW, OH);
+function drawOccluders(a) {
+  const o = town.occlusion;
+  if (!o) return;
+  const feet = Math.round((a.y + 0.5) * T + 12);
+  const x0 = Math.round((a.x + 0.5) * T) - OW / 2, y0 = feet - OH + 4;
+  const d = occImg.data;
+  let any = false;
+  for (let y = 0; y < OH; y++) {
+    const wy = y0 + y;
+    for (let x = 0; x < OW; x++) {
+      const wx = x0 + x, i = (y * OW + x) * 4;
+      if (wx < 0 || wy < 0 || wx >= o.w || wy >= o.h) { d[i + 3] = 0; continue; }
+      const p = wy * o.w + wx, b = o.base[p];
+      if (b && b > feet + 2) { const j = p * 4; d[i] = o.rgba[j]; d[i + 1] = o.rgba[j + 1]; d[i + 2] = o.rgba[j + 2]; d[i + 3] = 255; any = true; }
+      else d[i + 3] = 0;
+    }
+  }
+  a.hiddenBehind = false;
+  if (!any) return;
+  let covered = 0;
+  for (let y = OH - 44; y < OH - 4; y++) for (let x = OW / 2 - 7; x < OW / 2 + 7; x++) if (d[(y * OW + x) * 4 + 3]) covered++;
+  a.hiddenBehind = covered > 220;
+  occCtx.putImageData(occImg, 0, 0);
+  ctx.drawImage(occBuf, x0, y0);
 }
 
 function drawFountain(t) {
@@ -410,11 +442,14 @@ function drawTag(a) {
   const soc = sim.society;
   const icons = (soc.mayor === a.id ? "👑" : "") + (a.candidate ? "📣" : "") + (a.escort ? "🚔" : "") + (a.state === "jailed" ? "⛓️" : "") + (a.working ? "🔨" : "") + (a.hunger > 75 ? "🍞" : "");
   const label = a.res.name + (icons ? " " + icons : ""), w = ctx.measureText(label).width + 20;
+  ctx.save();
+  if (a.hiddenBehind) ctx.globalAlpha = 0.55;
   ctx.fillStyle = "rgba(25,22,32,0.78)";
   roundRect(ctx, s.x - w / 2, y - 8, w, 16, 8); ctx.fill();
   ctx.fillStyle = m.color; ctx.beginPath(); ctx.arc(s.x - w / 2 + 8, y, 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
   ctx.fillText(label, s.x - w / 2 + 14, y + 0.5);
+  ctx.restore();
 }
 
 // Speech bubbles: a card with the speaker's name and model, fade-in, typing dots, and no overlaps.
