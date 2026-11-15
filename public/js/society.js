@@ -18,6 +18,17 @@ const MAYOR_SALARY = 40;
 const ELECTION_EVERY = 2 * 1440; // every two game days
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+const own = (obj, key) => typeof key === "string" && Object.hasOwn(obj, key);
+// keep a law's number inside its allowed range (hours like curfew wrap past midnight: 19..23, 0..2)
+function lawParam(type, value) {
+  const def = LAW_TYPES[type]?.param;
+  if (!def) return undefined;
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return def.default;
+  if (def.min <= def.max) return clamp(n, def.min, def.max);
+  const h = ((n % 24) + 24) % 24;
+  return h >= def.min || h <= def.max ? h : def.default;
+}
 export const inRange = (h, a, b) => (a < b ? h >= a && h < b : h >= a || h < b);
 const hhmm = (min) => `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(Math.floor(min % 60)).padStart(2, "0")}`;
 
@@ -85,8 +96,10 @@ export class Society {
 
   // ---------- laws ----------
   addLaw({ type, param, text, penalty, keywords }, by = "you", quiet = false) {
+    if (!own(LAW_TYPES, type)) return;
     const def = LAW_TYPES[type];
-    const p = param ?? def.param?.default;
+    if (type === "custom") { text = String(text ?? "").trim().slice(0, 200); if (!text) return; }
+    const p = lawParam(type, param);
     const law = {
       id: `law${this.nextId++}`, type, param: p,
       text: def.text(p, text),
@@ -248,10 +261,10 @@ export class Society {
         const activities = Object.fromEntries(Object.entries(ACTIVITIES).map(([k, v]) => [k, v.label]));
         const goals = Object.fromEntries(Object.entries(GOAL_TYPES).map(([k, g]) => [k, g.label("N").replace("N ", "some ")]));
         const r = await think("plan", a.id, { situation: this.situation(a), lawIds, activities, goals: a.goal ? null : goals });
-        if (r && !a.goal && GOAL_TYPES[r.goal]) this.autonomy.setGoal(a, r.goal, String(r.why ?? "").slice(0, 160), String(r.dream ?? "").slice(0, 160));
+        if (r && !a.goal && own(GOAL_TYPES, r.goal)) this.autonomy.setGoal(a, r.goal, String(r.why ?? "").slice(0, 160), String(r.dream ?? "").slice(0, 160));
         if (r && typeof r.work === "boolean") plan = {
-          work: r.work, defy: (r.defy ?? []).filter((x) => lawIds.includes(x)),
-          wishes: (Array.isArray(r.wishes) ? r.wishes : []).filter((x) => ACTIVITIES[x]).slice(0, 3),
+          work: r.work, defy: (Array.isArray(r.defy) ? r.defy : []).filter((x) => lawIds.includes(x)),
+          wishes: (Array.isArray(r.wishes) ? r.wishes : []).filter((x) => own(ACTIVITIES, x)).slice(0, 3),
           intention: String(r.intention ?? "").slice(0, 200), source: "ai",
         };
       } catch (e) { console.warn(e); }
@@ -424,7 +437,7 @@ export class Society {
     if (anyLive) {
       try {
         const r = await think("judge", a.id, { laws: custom.map((l) => ({ id: l.id, text: l.text })), history });
-        violations = (r.violations ?? []).filter((v) => custom.some((l) => l.id === v.lawId) && (v.speaker === a.id || v.speaker === b.id));
+        violations = (Array.isArray(r.violations) ? r.violations : []).filter((v) => custom.some((l) => l.id === v.lawId) && (v.speaker === a.id || v.speaker === b.id));
       } catch (e) { console.warn(e); }
     } else {
       for (const line of history) for (const l of custom) if (l.keywords.some((k) => line.text.toLowerCase().includes(k))) violations.push({ speaker: line.id, lawId: l.id });
@@ -574,8 +587,10 @@ export class Society {
           types: Object.entries(LAW_TYPES).map(([k, v]) => ({ type: k, title: v.title, param: v.param?.label ?? null })),
           laws: this.laws.map((l) => ({ id: l.id, text: l.text })),
         });
-        if (r.action === "repeal" && this.laws.some((l) => l.id === r.lawId)) prop = { action: "repeal", lawId: r.lawId, reason: r.reason };
-        else if (r.action === "enact" && LAW_TYPES[r.type]) prop = { action: "enact", type: r.type, param: typeof r.param === "number" ? r.param : undefined, text: r.text, reason: r.reason };
+        const reason = String(r.reason ?? "").slice(0, 200);
+        const text = String(r.text ?? "").trim().slice(0, 200);
+        if (r.action === "repeal" && this.laws.some((l) => l.id === r.lawId)) prop = { action: "repeal", lawId: r.lawId, reason };
+        else if (r.action === "enact" && own(LAW_TYPES, r.type) && (r.type !== "custom" || text)) prop = { action: "enact", type: r.type, param: lawParam(r.type, r.param), text, reason };
       } catch (err) { console.warn(err); }
     }
     prop ??= this.instinctProposal(m);
