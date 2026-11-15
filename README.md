@@ -77,6 +77,15 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Crime and punishment:** lawbreakers get caught more often when others are nearby. Caught residents pay the fine; if they can't, they go to jail. Jail time means an escort to the Jail, no wages, a lost vote, and a hit to reputation and mood. Repeat offenders pay 50% more each time.
 - **Communities:** Lantern Society (order), Hearth & Harvest (food and fairness), Tinkerers' Union (work and progress) and Free Spirits (freedom and art). They meet up in the evenings, vote as blocs, help broke friends, and unhappy members may follow a friend to another community.
 - **Elections:** every two game days, each community nominates a candidate. There's a campaign, a rally in the plaza with speeches, then everyone votes (live residents vote with their own model and say why). The mayor earns a salary from the treasury and proposes a law change that you approve or reject.
+- **Relationships:** every pair of residents has a bond that grows or sours with each conversation (live models say how a chat made them feel). Friends, close friends, rivals and enemies form; couples get together (💞) and break up (💔); rivals argue when they meet.
+- **Gossip:** news spreads by word of mouth. Residents near an event hear first, then pass it on in conversations, so rumors travel across town.
+- **Diaries:** every night each resident writes a diary entry about their day (live models write their own). Read it on their card.
+- **Talk to residents:** open anyone's card and chat with them as the citizens' council. Ask how they feel, what they think of your laws, the mayor or their dreams. Live models answer in character; they remember you came by.
+- **Weather and seasons:** four seasons of four days each, with sun, clouds, rain, storms, fog and snow drawn over the map. Bad weather sends people indoors, rain makes fish bite and gardens grow, snow slows walking, and winter brings heating costs.
+- **Health:** hunger, exhaustion and storms make residents ill; sick residents slow down, stay home or visit the Clinic, where the doctor treats them for a fee.
+- **Disasters you can trigger (🚨 in the HUD):** fire at any building, a great storm, a river flood, an earthquake, an epidemic or a market crash. Every resident decides how to react, in character: fight the fire, flee, watch, loot, donate, sandbag the river, rescue the injured, isolate, protest... Live models pick their own reaction and shout it out. Damage closes buildings until volunteers and donations rebuild them, and heroes earn reputation.
+- **Sound:** a soundscape generated in the browser: birds by day, crickets at night, rain, wind, fire crackle, thunder, earthquake rumble, Music Night melodies, and chimes for big news (🔊 toggles it).
+- **AI cost tracker:** the 💲 chip and the Town tab show spend so far, spend per hour, calls and tokens per model. Set a spending cap and residents switch to built-in chatter when it's reached (or set `AI_BUDGET_USD` in `.env`).
 - **Independence:** every resident sets a personal goal (save up coins, catch a big fish, grow vegetables, make friends, become mayor, land a better job, and more) and has a dream. Goals steer what they do, and achieving one earns a 🏅 in the Gazette. Live AI models decide their own next move as the day goes on and say what they're thinking (💭 thought bubbles and the Live tab's "What they're thinking"). They also try things that can fail, like applying for a better-paying job.
 - **Free time:** residents have needs (hunger, energy, social, fun, money) and tastes of their own. In their free time they choose what to do, like real people: go fishing, grow vegetables, sell their catch at the market, cook at home, shop, read, take walks, nap, look for friends, or join an event. Each morning live AI models pick their own wishes for the day.
 - **Fishing and gardening:** fish range from minnows to the rare golden carp; garden plots grow vegetables. Sell them at the markets or cook them at home.
@@ -110,6 +119,10 @@ public/js/society.js economy, laws, crime, jail, communities, elections, gazette
 public/js/population.js workplaces and jobs, hiring and firing, newcomers, housing, moving away
 public/js/life.js    needs, free-time choices, fishing, gardening, market trading, daily events
 public/js/autonomy.js goals, dreams, thoughts, job applications, live AI decisions
+public/js/social.js  relationships, romance and rivalry, gossip, diaries, talking with residents
+public/js/world.js   seasons, weather and health
+public/js/disasters.js disasters, resident reactions, damage and rebuilding
+public/js/sound.js   the generated soundscape
 public/assets/logo.svg the Gotham crest (also the browser icon)
 public/js/offline.js built-in chatter for offline mode
 public/js/ui.js      sidebar tabs (Live, Town, Chats, Laws, Politics, Gazette), resident card, toasts
