@@ -77,6 +77,7 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Crime and punishment:** lawbreakers get caught more often when others are nearby. Caught residents pay the fine; if they can't, they go to jail. Jail time means an escort to the Jail, no wages, a lost vote, and a hit to reputation and mood. Repeat offenders pay 50% more each time.
 - **Communities:** Lantern Society (order), Hearth & Harvest (food and fairness), Tinkerers' Union (work and progress) and Free Spirits (freedom and art). They meet up in the evenings, vote as blocs, help broke friends, and unhappy members may follow a friend to another community.
 - **Elections:** every two game days, each community nominates a candidate. There's a campaign, a rally in the plaza with speeches, then everyone votes (live residents vote with their own model and say why). The mayor earns a salary from the treasury and proposes a law change that you approve or reject.
+- **Independence:** every resident sets a personal goal (save up coins, catch a big fish, grow vegetables, make friends, become mayor, land a better job, and more) and has a dream. Goals steer what they do, and achieving one earns a 🏅 in the Gazette. Live AI models decide their own next move as the day goes on and say what they're thinking (💭 thought bubbles and the Live tab's "What they're thinking"). They also try things that can fail, like applying for a better-paying job.
 - **Free time:** residents have needs (hunger, energy, social, fun, money) and tastes of their own. In their free time they choose what to do, like real people: go fishing, grow vegetables, sell their catch at the market, cook at home, shop, read, take walks, nap, look for friends, or join an event. Each morning live AI models pick their own wishes for the day.
 - **Fishing and gardening:** fish range from minnows to the rare golden carp; garden plots grow vegetables. Sell them at the markets or cook them at home.
 - **Community events:** every evening the Community Garden hosts something: a Garden Party, Music Night, a Fishing Contest (the winner takes 30 coins), Market Day (better prices) or a Harvest Festival (a free feast).
@@ -89,6 +90,7 @@ Every resident is free to do what they want, and every choice has consequences.
 
 - Drag to pan, scroll to zoom
 - Click a resident (on the map or in the sidebar) to see their money, mood, reputation, today's plan, criminal record, friends and memories, and to follow them
+- The minimap (bottom right) shows everyone; click it to jump there
 - Space pauses; ½× to 15× changes speed (at 1×, one game minute takes 2 real seconds, so a day lasts about 48 minutes)
 - "Reset town" in the sidebar starts Gotham over
 
@@ -106,6 +108,8 @@ public/js/sim.js     daily routines, free-will choices, movement, conversations,
 public/js/society.js economy, laws, crime, jail, communities, elections, gazette
 public/js/population.js workplaces and jobs, hiring and firing, newcomers, housing, moving away
 public/js/life.js    needs, free-time choices, fishing, gardening, market trading, daily events
+public/js/autonomy.js goals, dreams, thoughts, job applications, live AI decisions
+public/assets/logo.svg the Gotham crest (also the browser icon)
 public/js/offline.js built-in chatter for offline mode
 public/js/ui.js      sidebar tabs (Live, Town, Chats, Laws, Politics, Gazette), resident card, toasts
 public/js/main.js    rendering, lighting, weather, fireworks and camera
