@@ -33,6 +33,7 @@
         <button id="zoomOut" title="Zoom out (−)">−</button>
         <button id="zoomIn" title="Zoom in (+)">+</button>
         <span class="sep"></span>
+        <button id="skipNight" title="Skip to morning" hidden>⏭</button>
         <button id="muteBtn" title="Sound on/off">🔊</button>
         <button id="disasterBtn" class="danger" title="Trigger a disaster">🚨</button>
       </div>
@@ -94,6 +95,26 @@
       <section class="pane" data-pane="town">
         <h2>Population</h2>
         <div id="popStats" class="live-stats"></div>
+        <div class="pop-controls">
+          <label>Immigration
+            <select id="immPolicy">
+              <option value="open">Open borders: anyone welcome</option>
+              <option value="jobs">Only when there are jobs</option>
+              <option value="closed">Closed: no newcomers</option>
+            </select>
+          </label>
+          <label>Welcome grant
+            <select id="immGrant"><option value="0">None</option><option value="20">20 coins</option><option value="50">50 coins</option><option value="100">100 coins</option></select>
+          </label>
+          <button id="buildUnits" class="primary wide">🏗️ Add 4 units to Gotham Heights · 250 coins</button>
+          <p id="popMsg" class="note wide"></p>
+        </div>
+        <div id="departures"></div>
+        <h2>Trends</h2>
+        <div class="chips" id="trendChips"></div>
+        <canvas id="trendChart" class="trend" width="760" height="240"></canvas>
+        <h2>Milestones</h2>
+        <div id="milestones" class="milestones"></div>
         <h2>Jobs</h2>
         <div id="jobBoard"></div>
         <h2>Residents</h2>

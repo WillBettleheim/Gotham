@@ -334,3 +334,19 @@ input:focus, select:focus { outline: 2px solid rgba(255, 207, 110, 0.5); outline
 .chatlog .m.typing { color: var(--muted); font-style: italic; }
 .chatform { display: flex; gap: 6px; }
 .chatform input { flex: 1; }
+
+/* ---------- population controls, trends, milestones ---------- */
+.pop-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-top: 8px; }
+.pop-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); font-weight: 700; }
+.pop-controls .wide { grid-column: 1 / -1; }
+.pop-controls .note { margin: 0; min-height: 1em; }
+#departures { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+canvas.trend { width: 100%; height: 120px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; }
+.milestones { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ms { display: flex; gap: 8px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 12px; opacity: 0.5; }
+.ms.on { opacity: 1; border-color: rgba(242,184,67,0.5); background: linear-gradient(135deg, rgba(242,184,67,0.15), transparent); }
+.ms .i { font-size: 18px; filter: grayscale(1); }
+.ms.on .i { filter: none; }
+.ms b { display: block; font-size: 12px; }
+.ms small { color: var(--muted); font-size: 10.5px; line-height: 1.3; display: block; }
+#skipNight { color: #c4b5fd; }

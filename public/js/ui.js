@@ -4,6 +4,7 @@ import { drawPortrait } from "./sprites.js";
 import { penaltyText } from "./society.js";
 import { WORKPLACES, placeLabel } from "./population.js";
 import { DISASTERS } from "./disasters.js";
+import { SERIES } from "./stats.js";
 import { BUILDINGS } from "./mapdata.js";
 
 const $ = (id) => document.getElementById(id);
@@ -245,7 +246,46 @@ export function createUI() {
   };
 
   // ----- population & jobs -----
+  // population controls
+  $("immPolicy").onchange = (e) => { society.population.setPolicy(e.target.value); renderPopulation(); };
+  $("immGrant").onchange = (e) => { society.population.setGrant(e.target.value); renderPopulation(); };
+  $("buildUnits").onclick = () => { const err = society.population.buildUnits(); $("popMsg").textContent = err ?? "Done: 4 more households can move in."; renderPopulation(); };
+  let trend = "pop";
+  function renderTrends() {
+    if (!$("trendChips").children.length) {
+      $("trendChips").innerHTML = SERIES.map((x) => `<button data-k="${x.key}">${x.label}</button>`).join("");
+      $("trendChips").querySelectorAll("button").forEach((b) => b.onclick = () => { trend = b.dataset.k; renderTrends(); });
+    }
+    $("trendChips").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.k === trend));
+    const c = $("trendChart"), g = c.getContext("2d"), H = society.stats.history, ser = SERIES.find((x) => x.key === trend);
+    g.clearRect(0, 0, c.width, c.height);
+    const pad = 28, w = c.width - pad * 2, h = c.height - pad * 2;
+    g.fillStyle = "#a39cc4"; g.font = "20px Nunito, sans-serif";
+    if (H.length < 2) { g.fillText("Trends appear after a couple of game hours.", pad, c.height / 2); return; }
+    const vals = H.map((p) => p[trend]);
+    const max = ser.max ?? Math.max(10, ...vals) * 1.15, min = 0;
+    g.strokeStyle = "rgba(255,255,255,0.08)"; g.lineWidth = 1;
+    for (let k = 0; k <= 4; k++) { const y = pad + (h * k) / 4; g.beginPath(); g.moveTo(pad, y); g.lineTo(pad + w, y); g.stroke(); }
+    const xy = (i) => [pad + (w * i) / (vals.length - 1), pad + h - ((vals[i] - min) / (max - min)) * h];
+    const grad = g.createLinearGradient(0, pad, 0, pad + h); grad.addColorStop(0, ser.color + "66"); grad.addColorStop(1, ser.color + "00");
+    g.beginPath(); vals.forEach((_, i) => { const [x, y] = xy(i); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.lineTo(pad + w, pad + h); g.lineTo(pad, pad + h); g.closePath(); g.fillStyle = grad; g.fill();
+    g.beginPath(); vals.forEach((_, i) => { const [x, y] = xy(i); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.strokeStyle = ser.color; g.lineWidth = 4; g.lineJoin = "round"; g.stroke();
+    const [lx, ly] = xy(vals.length - 1); g.fillStyle = ser.color; g.beginPath(); g.arc(lx, ly, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#f6f1e7"; g.font = "bold 22px Nunito, sans-serif"; g.textAlign = "right"; g.fillText(`${vals.at(-1)}${ser.max === 100 && trend !== "mood" && trend !== "health" ? "%" : ""}`, pad + w, pad - 6);
+    g.textAlign = "left"; g.fillStyle = "#a39cc4"; g.font = "18px Nunito, sans-serif";
+    const day = (t) => `Day ${Math.floor(t / 1440) + 1}`; g.fillText(day(H[0].t), pad, c.height - 6); g.textAlign = "right"; g.fillText(day(H.at(-1).t), pad + w, c.height - 6); g.textAlign = "left";
+  }
+  function renderMilestones() {
+    const st = society.stats;
+    $("milestones").innerHTML = st.milestones.map((m) => `<div class="ms ${st.reached[m.id] ? "on" : ""}"><span class="i">${m.icon}</span><div><b>${esc(m.name)}</b><small>${st.reached[m.id] ? `Day ${st.reached[m.id]} · ` : ""}${esc(m.desc)}</small></div></div>`).join("");
+  }
+
   function renderPopulation() {
+    const pop = society.population;
+    if (document.activeElement !== $("immPolicy")) $("immPolicy").value = pop.policy;
+    if (document.activeElement !== $("immGrant")) $("immGrant").value = String(pop.grant);
+    $("departures").innerHTML = pop.departures_log.length ? `Recently moved away: ${pop.departures_log.slice(0, 4).map((d) => `${esc(d.name)} (day ${d.day}, ${esc(d.why)})`).join("; ")}` : "";
+    renderTrends(); renderMilestones();
     const st = society.population.stats();
     $("popStats").innerHTML = [["👥", st.population, "residents"], ["💼", st.employed, "employed"], ["🏠", `${st.population}/${st.capacity}`, "housing"], ["🧳", `${st.arrivals}↑ ${st.departures}↓`, "moved"]]
       .map(([i, v, k]) => `<div><b>${i} ${v}</b><span>${k}</span></div>`).join("");

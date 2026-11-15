@@ -52,6 +52,24 @@ sim.society.disasters.on((type, d) => {
 });
 let soundTick = 0, lastFlash = 0;
 
+// ---------- skip the night ----------
+let skipping = null;
+$("skipNight").onclick = () => {
+  if (skipping) return;
+  skipping = { speed: sim.speed };
+  sim.speed = 60;
+  $("skipNight").textContent = "⏩"; $("skipNight").title = "Skipping to morning…";
+};
+setInterval(() => {
+  const h = sim.hour, night = h >= 21 || h < 6;
+  $("skipNight").hidden = !night && !skipping;
+  if (skipping && !night) {
+    sim.speed = skipping.speed; skipping = null;
+    $("skipNight").textContent = "⏭"; $("skipNight").title = "Skip to morning";
+    sim.society.log("🌅", "Good morning, Gotham!", "town");
+  }
+}, 250);
+
 sim.society.on((type) => {
   if (type !== "elected") return;
   for (let k = 0; k < 6; k++) setTimeout(() => burst(town.fountain.x + (Math.random() - 0.5) * 300, town.fountain.y - 90 - Math.random() * 120), k * 450);
