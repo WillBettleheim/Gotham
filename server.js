@@ -19,10 +19,14 @@ try {
 } catch {}
 
 const PORT = Number(process.env.PORT) || 3000;
+// Only this computer can reach the town by default. Set HOST=0.0.0.0 to share it on your network
+// (anyone who can reach it can then spend your API credits, so keep AI_BUDGET_USD set).
+const HOST = process.env.HOST || "127.0.0.1";
 const OFFLINE = process.env.AI_TOWN_OFFLINE === "1";
 const CLAUDE_LIVE = !OFFLINE && Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-const client = CLAUDE_LIVE ? new Anthropic() : null;
+const client = CLAUDE_LIVE ? new Anthropic({ timeout: 60_000, maxRetries: 1 }) : null;
 const isClaude = (model) => model.startsWith("claude-");
+const own = (obj, key) => typeof key === "string" && Object.hasOwn(obj, key);
 
 // Which residents' models can actually be reached right now.
 const LIVE_MODELS = Object.fromEntries(
@@ -48,7 +52,7 @@ const PRICES = Object.fromEntries(Object.entries(DEFAULT_PRICES).map(([m, p]) =>
 }));
 const stats = { calls: 0, errors: 0, inputTokens: 0, outputTokens: 0, cost: 0, byModel: {}, startedAt: Date.now(), budget: Number(process.env.AI_BUDGET_USD) > 0 ? Number(process.env.AI_BUDGET_USD) : null, budgetHit: false };
 function record(model, input, output) {
-  const [pi, po] = PRICES[model] ?? [0, 0];
+  const [pi, po] = own(PRICES, model) ? PRICES[model] : [0, 0];
   const cost = (input * pi + output * po) / 1e6;
   const m = (stats.byModel[model] ??= { calls: 0, input: 0, output: 0, cost: 0 });
   m.calls++; m.input += input; m.output += output; m.cost += cost;
@@ -57,11 +61,20 @@ function record(model, input, output) {
 }
 class BudgetError extends Error {}
 
-// Keep a lid on parallel requests.
+// Keep a lid on parallel requests, on the queue behind them, and on calls per minute,
+// so nothing (a bug, a runaway tab) can flood the model APIs and run up a bill.
 let active = 0;
 const waiting = [];
 const MAX_PARALLEL = 3;
+const MAX_WAITING = 40;
+const MAX_PER_MINUTE = Number(process.env.AI_MAX_CALLS_PER_MINUTE) || 60;
+const recentCalls = [];
+class BusyError extends Error {}
 async function withSlot(fn) {
+  const now = Date.now();
+  while (recentCalls.length && now - recentCalls[0] > 60_000) recentCalls.shift();
+  if (recentCalls.length >= MAX_PER_MINUTE || waiting.length >= MAX_WAITING) throw new BusyError("too many requests");
+  recentCalls.push(now);
   if (active >= MAX_PARALLEL) await new Promise((r) => waiting.push(r));
   active++;
   try {
@@ -120,7 +133,7 @@ const clip = (s, n) => String(s ?? "").slice(0, n);
 function who(id, persona) {
   const known = residentById(id);
   if (known) return known;
-  if (!persona || !MODELS[persona.model] || typeof id !== "string" || !/^n_[\w]{1,40}$/.test(id)) return null;
+  if (!persona || typeof persona !== "object" || !own(MODELS, persona.model) || typeof id !== "string" || !/^n_[\w]{1,40}$/.test(id)) return null;
   return {
     id, model: persona.model,
     name: clip(persona.name, 30), role: clip(persona.role, 200),
@@ -284,25 +297,86 @@ Which speakers clearly broke one of these laws through what they said? Only coun
 Reply with JSON only: {"violations": [{"speaker": "<speaker id>", "lawId": "<law id>", "why": "<short>"}]}`;
 }
 
-async function readJson(req) {
-  let body = "";
-  for await (const chunk of req) {
-    body += chunk;
-    if (body.length > 100_000) throw new Error("too large");
-  }
-  return JSON.parse(body || "{}");
+class HttpError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
 }
+
+async function readJson(req) {
+  if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) throw new HttpError(415, "send JSON");
+  let body = "", size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > 2_000_000) throw new HttpError(413, "too large"); // way too big: drop the connection
+    if (size <= 100_000) body += chunk; // a bit too big: read and discard the rest, then answer 413
+  }
+  if (size > 100_000) throw new HttpError(413, "too large");
+  let data;
+  try { data = JSON.parse(body || "{}"); } catch { throw new HttpError(400, "bad JSON"); }
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new HttpError(400, "bad request");
+  return data;
+}
+
+// Model replies end up on the page, so strip anything that could be read as HTML.
+function clean(v, depth = 0) {
+  if (typeof v === "string") return v.replace(/[<>]/g, "").slice(0, 2000);
+  if (Array.isArray(v)) return depth > 4 ? [] : v.slice(0, 50).map((x) => clean(x, depth + 1));
+  if (v && typeof v === "object") {
+    if (depth > 4) return {};
+    const out = {};
+    for (const [k, x] of Object.entries(v).slice(0, 50)) if (k !== "__proto__") out[k] = clean(x, depth + 1);
+    return out;
+  }
+  return v;
+}
+
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Content-Security-Policy": [
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com", "img-src 'self' data: blob:", "connect-src 'self'", "media-src 'self' blob:",
+    "object-src 'none'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
+  ].join("; "),
+};
 
 function send(res, code, obj) {
-  res.writeHead(code, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(obj));
+  res.writeHead(code, { ...SECURITY_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" });
+  res.end(JSON.stringify(clean(obj)));
 }
 
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon" };
+// The API only answers the town's own page. This blocks other websites you visit (and DNS-rebinding
+// tricks) from using your API keys through your browser.
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+function allowedRequest(req) {
+  const host = String(req.headers.host ?? "");
+  const hostname = host.replace(/:\d+$/, "").toLowerCase();
+  if (!LOCAL_HOSTS.has(hostname) && hostname !== HOST.toLowerCase() && !(process.env.ALLOWED_HOSTS ?? "").split(",").map((h) => h.trim().toLowerCase()).includes(hostname)) return false;
+  const origin = req.headers.origin;
+  if (origin) {
+    try { if (new URL(origin).host.toLowerCase() !== host.toLowerCase()) return false; } catch { return false; }
+  }
+  const site = req.headers["sec-fetch-site"];
+  if (site && site !== "same-origin" && site !== "none") return false;
+  return true;
+}
+
+const TYPES = {
+  ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+  ".json": "application/json", ".woff2": "font/woff2",
+};
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, "http://localhost");
+  let url;
+  try { url = new URL(req.url, "http://localhost"); } catch { return send(res, 400, { error: "bad url" }); }
   try {
+    if (url.pathname.startsWith("/api/")) {
+      if (!allowedRequest(req)) return send(res, 403, { error: "forbidden" });
+    } else if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, { error: "method not allowed" });
     if (url.pathname === "/api/status") {
       const hours = Math.max(1 / 60, (Date.now() - stats.startedAt) / 3600e3);
       return send(res, 200, { live: LIVE, liveModels: LIVE_MODELS, town: TOWN_NAME, stats, prices: PRICES, perHour: stats.cost / hours });
@@ -365,14 +439,25 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    // Static files
-    let file = path.normalize(path.join(publicDir, decodeURIComponent(url.pathname)));
-    if (!file.startsWith(publicDir)) return send(res, 403, { error: "forbidden" });
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
-    if (!fs.existsSync(file)) return send(res, 404, { error: "not found" });
-    res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] ?? "application/octet-stream" });
-    fs.createReadStream(file).pipe(res);
+    if (url.pathname.startsWith("/api/")) return send(res, 404, { error: "not found" });
+
+    // Static files: only real files inside public/, no hidden files, no escaping the folder.
+    let rel;
+    try { rel = decodeURIComponent(url.pathname); } catch { return send(res, 400, { error: "bad path" }); }
+    if (rel.includes("\0") || rel.split(/[\\/]/).some((part) => part.startsWith("."))) return send(res, 404, { error: "not found" });
+    let file = path.resolve(publicDir, "." + path.posix.normalize("/" + rel));
+    if (file !== publicDir && !file.startsWith(publicDir + path.sep)) return send(res, 403, { error: "forbidden" });
+    let st = fs.statSync(file, { throwIfNoEntry: false });
+    if (st?.isDirectory()) { file = path.join(file, "index.html"); st = fs.statSync(file, { throwIfNoEntry: false }); }
+    if (!st?.isFile()) return send(res, 404, { error: "not found" });
+    const real = fs.realpathSync(file);
+    if (!real.startsWith(fs.realpathSync(publicDir) + path.sep)) return send(res, 403, { error: "forbidden" });
+    res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream", "Content-Length": st.size, "Cache-Control": "no-cache" });
+    if (req.method === "HEAD") return res.end();
+    fs.createReadStream(real).on("error", () => res.destroy()).pipe(res);
   } catch (err) {
+    if (err instanceof HttpError) return send(res, err.status, { error: err.message });
+    if (err instanceof BusyError) return send(res, 429, { error: "busy" });
     stats.errors++;
     if (err instanceof BudgetError) return send(res, 503, { error: "budget" });
     if (err instanceof Anthropic.APIError || err.status || err.name === "TimeoutError") {
@@ -384,8 +469,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
+server.headersTimeout = 20_000;
+server.requestTimeout = 120_000;
+server.listen(PORT, HOST, () => {
   console.log(`\n  🏘️  ${TOWN_NAME} is open at http://localhost:${PORT}\n`);
+  if (!LOCAL_HOSTS.has(HOST)) console.log(`  ⚠️  Shared on your network (HOST=${HOST}). Anyone who can reach it can use your API keys; set AI_BUDGET_USD.\n`);
   for (const [m, on] of Object.entries(LIVE_MODELS)) {
     const who = RESIDENTS.filter((r) => r.model === m).map((r) => r.name).join(", ");
     console.log(`  ${on ? "🟢 live   " : "⚪ offline"} ${MODELS[m].label.padEnd(18)} ${who}`);
