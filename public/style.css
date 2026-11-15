@@ -285,3 +285,52 @@ input:focus, select:focus { outline: 2px solid rgba(255, 207, 110, 0.5); outline
 .goal .bar { margin-top: 6px; height: 7px; }
 .goal small { display: block; color: var(--muted); margin-top: 5px; line-height: 1.4; }
 .res .goalline { font-size: 11px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- disasters, weather, cost ---------- */
+.controls button.danger { color: #fca5a5; }
+.controls button.danger:hover, .controls button.danger.on { background: rgba(248,113,113,0.2); color: #fff; }
+#tWeather b, #tCost b { color: var(--text); }
+#tCost { cursor: pointer; }
+#disasterMenu { position: absolute; top: 78px; left: 14px; width: 300px; padding: 12px; z-index: 5; }
+.dm-h b { display: block; font-size: 14px; }
+.dm-h small { color: var(--muted); font-size: 12px; }
+#disasterList { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0 8px; }
+#disasterList button { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 8px; cursor: pointer; text-align: left; font-weight: 800; font-size: 12.5px; }
+#disasterList button small { display: block; color: var(--muted); font-weight: 600; font-size: 10.5px; margin-top: 2px; line-height: 1.3; }
+#disasterList button:hover { border-color: #f87171; background: rgba(248,113,113,0.12); }
+#disasterList button:disabled { opacity: 0.4; cursor: default; }
+.dm-target { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+.dm-target select { flex: 1; }
+.emergency { background: linear-gradient(135deg, rgba(248,113,113,0.2), rgba(251,146,60,0.1)); border: 1px solid rgba(248,113,113,0.45); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; animation: pulseRed 2s ease-in-out infinite; }
+.emergency .t { font-weight: 900; font-size: 13.5px; display: flex; justify-content: space-between; gap: 8px; }
+.emergency .t small { color: var(--muted); font-weight: 700; }
+.emergency p { margin: 5px 0 0; font-size: 12.5px; line-height: 1.45; }
+.emergency .acts { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.emergency .acts span { background: rgba(0,0,0,0.25); border-radius: 99px; padding: 2px 8px; font-size: 11.5px; }
+.repair { background: var(--panel-2); border-radius: 12px; padding: 9px 12px; margin-bottom: 8px; font-size: 12.5px; }
+@keyframes pulseRed { 50% { border-color: rgba(248,113,113,0.85); } }
+.cost-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+.cost-grid div { background: var(--panel-2); border-radius: 10px; padding: 8px; text-align: center; }
+.cost-grid b { display: block; font-size: 16px; font-weight: 900; }
+.cost-grid span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.cost-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 8px; }
+.cost-table td, .cost-table th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.cost-table td:first-child, .cost-table th:first-child { text-align: left; }
+.cost-table th { color: var(--muted); font-weight: 700; font-size: 10.5px; text-transform: uppercase; }
+.note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
+.note code { font-size: 11px; }
+.budget-warn { color: #fca5a5; font-weight: 800; }
+/* resident card: relationships, diary, chat */
+.bonds { display: flex; flex-direction: column; gap: 4px; }
+.bond { display: grid; grid-template-columns: 18px 70px 1fr 34px; gap: 6px; align-items: center; font-size: 12px; }
+.bond .bar { margin: 0; height: 5px; }
+.bond .v { color: var(--muted); text-align: right; font-size: 11px; }
+.diary { background: #f6efdc; color: #3b2a1a; border-radius: 10px; padding: 9px 11px; font-family: Georgia, serif; font-size: 12.5px; line-height: 1.5; font-style: italic; }
+.diary small { display: block; font-style: normal; font-weight: 700; color: #8a6a45; font-family: Nunito, sans-serif; margin-bottom: 2px; }
+.chatlog { max-height: 170px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; margin-bottom: 6px; }
+.chatlog .m { max-width: 85%; padding: 6px 9px; border-radius: 10px; font-size: 12.5px; line-height: 1.4; }
+.chatlog .m.council { align-self: flex-end; background: var(--accent); color: #2a1a05; }
+.chatlog .m.you { align-self: flex-start; background: var(--panel-3); }
+.chatlog .m.typing { color: var(--muted); font-style: italic; }
+.chatform { display: flex; gap: 6px; }
+.chatform input { flex: 1; }

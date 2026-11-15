@@ -3,6 +3,8 @@ import { MODELS, COMMUNITIES, LAW_TYPES, residentById } from "./residents.js";
 import { drawPortrait } from "./sprites.js";
 import { penaltyText } from "./society.js";
 import { WORKPLACES, placeLabel } from "./population.js";
+import { DISASTERS } from "./disasters.js";
+import { BUILDINGS } from "./mapdata.js";
 
 const $ = (id) => document.getElementById(id);
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -57,6 +59,9 @@ export function createUI() {
       buildResidents();
       buildLawForm();
       buildGazetteFilters();
+      buildDisasterMenu();
+      society.disasters.on(() => { renderLive(); buildDisasterMenu(); });
+      pollCost(); setInterval(pollCost, 4000);
       renderAll();
       setInterval(tick, 500);
     },
@@ -104,6 +109,8 @@ export function createUI() {
   }
 
   function renderTicker() {
+    const world = society.world, w = world.w;
+    $("tWeather").innerHTML = `${w.icon} <b>${w.name}</b> · ${world.season.icon} ${world.season.name}`;
     const mayor = society.mayorAgent();
     $("tTreasury").textContent = Math.round(society.treasury);
     $("tMayor").textContent = mayor ? mayor.res.name : "no mayor";
@@ -192,6 +199,51 @@ export function createUI() {
     }
   }
 
+  function bondsHtml(a) {
+    return Object.entries(a.bond ?? {}).sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 6).map(([id, v]) => {
+      const o = sim.agents.find((x) => x.id === id);
+      if (!o) return "";
+      const { icon, label } = society.social.bondLabel(a, id);
+      return `<div class="bond" title="${label}"><span>${icon}</span><span>${esc(o.res.name)}</span>${bar((v + 100) / 2, v >= 0 ? "#4ade80" : "#f87171")}<span class="v">${v > 0 ? "+" : ""}${Math.round(v)}</span></div>`;
+    }).join("");
+  }
+
+  function buildDisasterMenu() {
+    const dis = society.disasters;
+    $("disasterList").innerHTML = Object.entries(DISASTERS).map(([k, d]) => `<button data-k="${k}" ${dis.current(k) ? "disabled" : ""}>${d.icon} ${d.name}<small>${dis.current(k) ? "happening now" : esc(d.desc)}</small></button>`).join("");
+    $("disasterList").querySelectorAll("button").forEach((b) => b.onclick = () => {
+      dis.trigger(b.dataset.k, $("fireTarget").value);
+      $("disasterMenu").hidden = true; $("disasterBtn").classList.remove("on");
+      tab = "live"; document.querySelectorAll("#tabs button").forEach((x) => x.classList.toggle("on", x.dataset.tab === "live"));
+      document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.dataset.pane === "live"));
+      renderLive();
+    });
+    const sel = $("fireTarget");
+    if (!sel.options.length) sel.innerHTML = `<option value="">Random building</option>` + BUILDINGS.filter((b) => b.place !== "garden").map((b) => `<option>${esc(b.name)}</option>`).join("");
+  }
+  $("disasterBtn").onclick = () => { const m = $("disasterMenu"); m.hidden = !m.hidden; $("disasterBtn").classList.toggle("on", !m.hidden); };
+
+  let costData = null;
+  async function pollCost() {
+    try { costData = await (await fetch("/api/status")).json(); } catch { return; }
+    const st = costData.stats, money = (v) => v < 0.01 && v > 0 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`;
+    $("tCost").innerHTML = `💲 <b>${money(st.cost)}</b>${st.budget ? ` / $${st.budget}` : ""}`;
+    $("tCost").classList.toggle("budget-warn", !!st.budgetHit);
+    const rows = Object.entries(st.byModel).sort((x, y) => y[1].cost - x[1].cost)
+      .map(([m, v]) => `<tr><td><span style="color:${MODELS[m]?.color ?? "#fff"}">●</span> ${esc(MODELS[m]?.label ?? m)}</td><td>${v.calls}</td><td>${Math.round((v.input + v.output) / 1000)}k</td><td>${money(v.cost)}</td></tr>`).join("");
+    $("costPanel").innerHTML = `<div class="cost-grid"><div><b>${money(st.cost)}</b><span>spent</span></div><div><b>${money(costData.perHour ?? 0)}</b><span>per hour</span></div><div><b>${st.calls}</b><span>AI calls</span></div></div>
+      ${st.budgetHit ? `<p class="budget-warn">Spending cap of $${st.budget} reached: residents are using built-in chatter.</p>` : ""}
+      ${rows ? `<table class="cost-table"><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cost</th></tr>${rows}</table>` : `<p class="empty">No AI calls yet${costData.live ? "" : " (no API keys, so it's all free offline chatter)"}.</p>`}`;
+    if (st.budget && document.activeElement !== $("budgetInput")) $("budgetInput").value = st.budget;
+  }
+  $("tCost").onclick = () => { document.querySelector('[data-tab="town"]').click(); setTimeout(() => $("costPanel").scrollIntoView({ behavior: "smooth" }), 50); };
+  $("budgetForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const usd = Number($("budgetInput").value);
+    await fetch("/api/budget", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usd: usd > 0 ? usd : null }) });
+    pollCost();
+  };
+
   // ----- population & jobs -----
   function renderPopulation() {
     const st = society.population.stats();
@@ -245,6 +297,15 @@ export function createUI() {
     if (e.phase !== "idle") cards.push(`<div class="now-card" style="--c:#c084fc"><div class="t">🗳️ Election: ${e.phase === "campaign" ? "campaign underway" : e.phase === "rally" ? "rally in the plaza" : "counting votes"}<small>${e.candidates.map((c) => esc(residentById(c.id)?.name)).join(" vs ")}</small></div></div>`);
     for (const a of sim.agents.filter((x) => x.state === "jailed")) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#9ca3af"><div class="t">⛓️ ${esc(a.res.name)} is serving time<small>${esc(a.activity)}</small></div></div>`);
     $("liveNow").innerHTML = cards.join("") || `<p class="empty">Quiet moment. Nobody is chatting right now.</p>`;
+    const dis = society.disasters;
+    const actLabel = { help: "🧯 fighting it", flee: "🏃 fled", watch: "👀 watching", loot: "💰 looting", donate: "💝 donated", shelter: "🏠 sheltering", secure: "🌱 securing garden", inn: "🍺 at the Inn", fish: "🎣 fishing anyway", sandbag: "🧱 sandbagging", evacuate: "🏃 evacuated", rescue: "🚑 rescuing", friend: "🫂 checking on friends", hide: "🏠 hiding", isolate: "🏠 isolating", checkup: "🩺 at the Clinic", nurse: "🧑‍⚕️ nursing", ignore: "🤷 ignoring it", protest: "📢 protesting", hoard: "🏠 hoarding", work: "🔨 working" };
+    $("emergencies").innerHTML = dis.active.map((d) => {
+      const counts = {};
+      for (const act of Object.values(d.actions)) counts[act] = (counts[act] ?? 0) + 1;
+      const left = Math.max(0, Math.round(d.end - sim.time));
+      const extra = d.type === "fire" ? ` · flames ${Math.round(Math.min(2, d.intensity) * 50)}%` : d.type === "flood" ? ` · water level ${Math.round(d.intensity * 60)}%` : "";
+      return `<div class="emergency"><div class="t">${esc(d.title)}<small>${Math.floor(left / 60)}h ${left % 60}m left${extra}</small></div><p>${esc(d.desc)}.</p><div class="acts">${Object.entries(counts).map(([k, n]) => `<span>${actLabel[k] ?? k}: ${n}</span>`).join("")}</div></div>`;
+    }).join("") + Object.values(dis.damaged).map((r) => `<div class="repair">🚧 <b>${esc(r.building.name)}</b> is closed for repairs ${bar(r.progress * 100, "#f2b843")}<small>${Math.round(r.progress * 100)}% rebuilt · volunteers and donations speed it up</small></div>`).join("");
     const thoughts = society.autonomy.thoughts.slice(0, 8);
     $("liveThoughts").innerHTML = thoughts.length
       ? thoughts.map((t) => { const a = sim.agents.find((x) => x.id === t.id); const col = a ? MODELS[a.res.model].color : "#999"; return `<div class="thought" data-who="${t.id}"><span class="dot" style="background:${col}"></span><div><b>${esc(t.name)}</b> <i>“${esc(t.text)}”</i></div></div>`; }).join("")
@@ -466,12 +527,29 @@ export function createUI() {
       <div class="plan">${a.plan ? esc(a.plan.intention) : "Still asleep."}${a.plan ? `<small>${a.plan.work ? "✅ working today" : "🛋️ skipping work"}${a.plan.defy.length ? ` · 😈 willing to break: ${a.plan.defy.map((t) => LAW_TYPES[t]?.title ?? t).join(", ")}` : " · 😇 following the law"}${a.plan.wishes?.length ? `<br>💭 wants to: ${a.plan.wishes.map((w) => WISH_LABEL[w] ?? w).join(", ")}` : ""}</small>` : ""}</div>
       <h4>Record</h4><div class="tags">${tags}</div>
       <h4>Personality</h4><p class="role">${esc(a.res.personality)}</p>
-      <h4>Friends</h4><div class="friends">${friends || '<span class="role">No chats yet</span>'}</div>
+      <h4>Relationships</h4><div class="bonds">${bondsHtml(a) || `<span class="role">Hasn&#39;t really met anyone yet</span>`}</div>
+      ${a.diary?.length ? `<h4>Diary 📔</h4><div class="diary"><small>Day ${a.diary[0].day}</small>${esc(a.diary[0].text)}</div>` : ""}
+      <h4>Talk to ${esc(a.res.name)} ${sim.liveModels[a.res.model] ? "🤖" : ""}</h4>
+      <div class="chatlog">${(a.chatLog ?? []).map((m) => `<div class="m ${m.from}">${esc(m.text)}</div>`).join("") || '<p class="role">Ask them anything: how they feel, what they think of your laws, their dreams…</p>'}</div>
+      <form class="chatform"><input maxlength="300" placeholder="Say something as the citizens' council…" /><button type="submit" class="primary">Send</button></form>
       <h4>Memories</h4>${mems ? `<ul>${mems}</ul>` : '<p class="role">Nothing yet.</p>'}
       <div class="row"><button class="follow ${follow ? "on" : ""}">${follow ? "Following" : "Follow"}</button></div>`;
     drawPortrait(card.querySelector("canvas"), a.res);
     card.querySelector(".close").onclick = () => ui.select(null);
     card.querySelector(".min").onclick = () => { cardCollapsed = !cardCollapsed; renderCard(); };
+    const cl = card.querySelector(".chatlog"); if (cl) cl.scrollTop = cl.scrollHeight;
+    card.querySelector(".chatform")?.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const input = ev.target.querySelector("input"), msg = input.value.trim();
+      if (!msg) return;
+      input.value = ""; input.disabled = true;
+      const who = a;
+      const log = card.querySelector(".chatlog");
+      log.insertAdjacentHTML("beforeend", `<div class="m council">${esc(msg)}</div><div class="m you typing">${esc(who.res.name)} is thinking…</div>`);
+      log.scrollTop = log.scrollHeight;
+      await society.social.chat(who, msg);
+      if (selected === who) { renderCard(); card.querySelector(".chatform input")?.focus(); }
+    });
     card.querySelector(".follow").onclick = () => { follow = !follow; renderCard(); };
     card.hidden = false;
     updateCardLive();
@@ -492,6 +570,7 @@ export function createUI() {
       ["⚡ Energy", Math.round(a.energy), a.energy, "#fb923c"],
       ["🫂 Social", Math.round(a.social), a.social, "#c084fc"],
       ["🎈 Fun", Math.round(a.fun), a.fun, "#2dd4bf"],
+      [a.sick ? "🤒 Health (sick)" : "❤️ Health", Math.round(a.health ?? 90), a.health ?? 90, a.sick ? "#f87171" : "#fb7185"],
     ].map(([k, v, pct, col]) => `<div class="stat">${k}<span class="v">${v}</span>${bar(pct, col)}</div>`).join("")
       + `<div class="stat bag">🎒 ${a.inv?.fish ? `${a.inv.fish} fish` : ""}${a.inv?.fish && a.inv?.veg ? " · " : ""}${a.inv?.veg ? `${a.inv.veg} veg` : ""}${!a.inv?.fish && !a.inv?.veg ? "empty bag" : ""}${a.catches ? ` · ${a.catches} caught` : ""}</div>`;
   }

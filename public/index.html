@@ -32,16 +32,26 @@
         <span class="sep"></span>
         <button id="zoomOut" title="Zoom out (−)">−</button>
         <button id="zoomIn" title="Zoom in (+)">+</button>
+        <span class="sep"></span>
+        <button id="muteBtn" title="Sound on/off">🔊</button>
+        <button id="disasterBtn" class="danger" title="Trigger a disaster">🚨</button>
       </div>
       <div class="ticker" id="ticker">
+        <span class="chip glass" title="Weather and season" id="tWeather">☀️ Sunny</span>
         <span class="chip glass" title="Town treasury">🏦 <b id="tTreasury">200</b></span>
         <span class="chip glass" title="Mayor">👑 <b id="tMayor">no mayor</b></span>
         <span class="chip glass" title="Residents">👥 <b id="tPop">13</b></span>
         <span class="chip glass" title="In jail">⛓️ <b id="tJail">0</b></span>
         <span class="chip glass event-chip" id="tEvent" title="Today's event" hidden></span>
+        <span class="chip glass" id="tCost" title="AI spend so far (click for details)">💲 <b>$0.00</b></span>
       </div>
     </div>
     <div id="minimap" class="glass" title="Click to jump there"><canvas id="mini"></canvas></div>
+    <div id="disasterMenu" class="glass" hidden>
+      <div class="dm-h"><b>🚨 Trigger a disaster</b><small>Watch how Gotham's residents react</small></div>
+      <div id="disasterList"></div>
+      <label class="dm-target">Fire target <select id="fireTarget"></select></label>
+    </div>
     <div id="toasts"></div>
     <div id="hint">Drag to pan · double-tap or scroll to zoom · click a resident</div>
     <div id="card" hidden></div>
@@ -72,6 +82,7 @@
     <div id="panes">
       <section class="pane on" data-pane="live">
         <div id="liveStats" class="live-stats"></div>
+        <div id="emergencies"></div>
         <h2>Happening now</h2>
         <div id="liveNow"></div>
         <h2>What they're thinking</h2>
@@ -96,6 +107,13 @@
         <div id="residents"></div>
         <h2>Communities</h2>
         <div id="communities"></div>
+        <h2>AI usage &amp; cost</h2>
+        <div id="costPanel"></div>
+        <form id="budgetForm" class="row-form">
+          <input id="budgetInput" type="number" min="0" step="0.5" placeholder="Spending cap in USD (empty = no cap)" />
+          <button type="submit">Set cap</button>
+        </form>
+        <p class="note">When the cap is reached, residents switch to built-in chatter. Claude prices are Anthropic's list prices; other providers are estimates (free tiers count as $0) that you can override in <code>.env</code>.</p>
       </section>
 
       <section class="pane" data-pane="chats">
