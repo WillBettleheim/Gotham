@@ -154,8 +154,10 @@ function frame(now) {
   drawWaterfall(t);
   drawFountain(t);
   if (sim.society.election.phase !== "idle") drawBunting(t);
+  if (sim.society.life.event?.active && !sim.society.life.event.place) drawEventLights(t, sim.society.life.event);
 
   const visible = sim.agents.filter((a) => a.visible).sort((a, b) => a.y - b.y);
+  for (const a of sim.agents) a.isMayor = sim.society.mayor === a.id;
   for (const a of visible) {
     if (a === selected) {
       ctx.strokeStyle = "rgba(255,207,110,0.9)"; ctx.lineWidth = 2;
@@ -219,6 +221,33 @@ function drawSparks(dt) {
     if (p.life <= 0) { sparks.splice(i, 1); continue; }
     ctx.fillStyle = `hsla(${p.hue}, 95%, 65%, ${p.life})`;
     ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+}
+
+// string lights over the Community Garden lawn during events (and music notes on Music Night)
+const EVENT_BULBS = [];
+for (let row = 0; row < 3; row++) for (let i = 0; i <= 10; i++) {
+  const x = 738 + i * 15, y = 1660 + row * 70 + Math.sin((i / 10) * Math.PI) * 12;
+  EVENT_BULBS.push([x, y]);
+}
+function drawEventLights(t, ev) {
+  ctx.strokeStyle = "rgba(40,30,20,0.6)"; ctx.lineWidth = 1;
+  for (let row = 0; row < 3; row++) {
+    ctx.beginPath();
+    for (let i = 0; i <= 10; i++) { const [x, y] = EVENT_BULBS[row * 11 + i]; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.stroke();
+  }
+  const cols = ["#ffd36e", "#ff8fab", "#8fd3ff", "#b4f08a"];
+  EVENT_BULBS.forEach(([x, y], i) => {
+    const on = 0.65 + Math.sin(t * 3 + i) * 0.35;
+    ctx.fillStyle = cols[i % 4]; ctx.globalAlpha = on; ctx.beginPath(); ctx.arc(x, y + 2, 2.4, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+  });
+  if (ev.id === "music") {
+    for (let i = 0; i < 6; i++) {
+      const p = (t * 0.35 + i / 6) % 1;
+      ctx.fillStyle = `rgba(40,30,60,${1 - p})`; ctx.font = "14px serif";
+      ctx.fillText(i % 2 ? "♪" : "♫", 790 + Math.sin(t + i * 2) * 40 + i * 8, 1620 - p * 50);
+    }
   }
 }
 
@@ -308,6 +337,7 @@ function drawLighting(dark, warm, t) {
     lctx.fillStyle = g; lctx.fillRect(x - r, y - r, r * 2, r * 2);
   };
   for (const w of town.windows) hole(w.x, w.y + 6, 34 + 26 * (w.size ?? 1), 0.85);
+  if (sim.society.life.event?.active && !sim.society.life.event.place) for (const [x, y] of EVENT_BULBS) hole(x, y, 30, 0.7);
   if (town.forge) hole(town.forge.x, town.forge.y + 10, 60, 0.9);
   for (const a of sim.agents) if (a.visible) hole((a.x + 0.5) * T, (a.y + 0.5) * T, 34, 0.35);
   ctx.save();
