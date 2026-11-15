@@ -160,12 +160,17 @@ function thinkPrompt(kind, r, b) {
   const situation = `Your situation:\n${clip(b.situation, 3000)}`;
   if (kind === "plan") {
     const ids = list(b.lawIds, 10).map((x) => clip(x, 20));
+    const acts = Object.entries(b.activities && typeof b.activities === "object" ? b.activities : {}).slice(0, 12)
+      .map(([k, v]) => `- "${clip(k, 20)}": ${clip(v, 80)}`).join("\n");
     return `${situation}
 
-It's morning. Decide how you'll spend today. You are completely free to choose: work or skip work, follow the laws or break them. But choices have consequences: skipping work means no wages (and maybe a fine if work is mandatory), and breaking a law means a fine or jail if you're caught, which also hurts your reputation. Decide the way ${r.name} genuinely would.
+It's morning. Decide how you'll spend today. You are completely free to choose, like a real person: work or skip work, follow the laws or break them, and spend your free time however you like. Choices have consequences: skipping work means no wages (and maybe a fine if work is mandatory), and breaking a law means a fine or jail if you're caught, which also hurts your reputation. Fishing and gardening can earn you something to sell or eat. Decide the way ${r.name} genuinely would.
+
+Things you could do in your free time:
+${acts || "- (anything)"}
 
 Reply with JSON only, no other text:
-{"work": true or false, "defy": [law types from ${JSON.stringify(ids)} you're willing to break today, or empty], "intention": "one short first-person sentence about your plan for today"}`;
+{"work": true or false, "defy": [law types from ${JSON.stringify(ids)} you're willing to break today, or empty], "wishes": [up to 3 free-time activity ids from the list, most wanted first], "intention": "one short first-person sentence about your plan for today"}`;
   }
   if (kind === "speech") {
     return `${situation}
