@@ -181,12 +181,19 @@ export function createUI() {
 
   // ----- live tab: everything happening right now -----
   const placeName = (a) => a.state === "jailed" ? "Jail" : a.place === "home" ? "home" : placeLabel(a.place);
+  const WISH_LABEL = { fish: "go fishing", garden: "garden", sell: "sell at the market", shop: "go shopping", read: "read", stroll: "take a walk", socialize: "see friends", event: "go to the event", nap: "nap" };
   function category(a) {
     if (a.state === "jailed") return ["⛓️", "In jail"];
     if (a.escort) return ["🚔", "Being arrested"];
     if (a.state === "talking") return ["💬", "Talking"];
     if (a.state === "sleeping") return ["💤", "Sleeping"];
     if (a.working) return ["🔨", "Working"];
+    if (a.state === "idle" && a.place === a.doingPlace) {
+      if (a.doing === "fish") return ["🎣", "Fishing"];
+      if (a.doing === "garden") return ["🌱", "Gardening"];
+      if (a.doing === "event") return ["🎉", "At the event"];
+      if (a.doing === "nap") return ["😴", "Napping"];
+    }
     if (a.state === "walking") return ["🚶", "On the move"];
     return ["☕", "Hanging out"];
   }
@@ -202,13 +209,20 @@ export function createUI() {
       cards.push(`<div class="now-card" data-who="${c.a.id}" style="--c:${MODELS[c.a.res.model].color}"><div class="t">💬 ${esc(c.a.res.name)} & ${esc(c.b.res.name)}<small>${esc(c.place)}</small></div>${lines}${typer ? `<p class="typing">${esc(typer.res.name)} is thinking…</p>` : ""}</div>`);
     }
     for (const a of sim.agents.filter((x) => x.escort)) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#f87171"><div class="t">🚔 ${esc(a.res.name)} is being taken to jail</div></div>`);
+    const ev = society.life.event;
+    if (ev) {
+      const fmt = (m) => `${String(Math.floor((m % 1440) / 60)).padStart(2, "0")}:${String(Math.floor(m % 60)).padStart(2, "0")}`;
+      const leader = ev.id === "contest" && Object.entries(ev.scores).sort((x, y) => y[1] - x[1])[0];
+      const status = ev.active ? `happening now · ${ev.attendees.size} attending${leader ? ` · ${esc(residentById(leader[0])?.name)} leads with ${leader[1]} fish` : ""}` : sim.time < ev.start ? `starts at ${fmt(ev.start)}` : "finished";
+      cards.push(`<div class="now-card" style="--c:#4ade80"><div class="t">${ev.icon} ${esc(ev.name)}<small>${status}</small></div><p>${esc(ev.desc)}</p></div>`);
+    }
     const e = society.election;
     if (e.phase !== "idle") cards.push(`<div class="now-card" style="--c:#c084fc"><div class="t">🗳️ Election: ${e.phase === "campaign" ? "campaign underway" : e.phase === "rally" ? "rally in the plaza" : "counting votes"}<small>${e.candidates.map((c) => esc(residentById(c.id)?.name)).join(" vs ")}</small></div></div>`);
     for (const a of sim.agents.filter((x) => x.state === "jailed")) cards.push(`<div class="now-card" data-who="${a.id}" style="--c:#9ca3af"><div class="t">⛓️ ${esc(a.res.name)} is serving time<small>${esc(a.activity)}</small></div></div>`);
     $("liveNow").innerHTML = cards.join("") || `<p class="empty">Quiet moment. Nobody is chatting right now.</p>`;
     const groups = {};
     for (const a of sim.agents) { const [icon, label] = category(a); (groups[label] ??= { icon, list: [] }).list.push(a); }
-    const order = ["Being arrested", "Talking", "Working", "On the move", "Hanging out", "In jail", "Sleeping"];
+    const order = ["Being arrested", "Talking", "At the event", "Working", "Fishing", "Gardening", "On the move", "Hanging out", "Napping", "In jail", "Sleeping"];
     $("liveList").innerHTML = order.filter((k) => groups[k]).map((k) => `<div class="group-h">${groups[k].icon} ${k} <i>${groups[k].list.length}</i></div>` +
       groups[k].list.map((a) => `<div class="lrow" data-who="${a.id}"><span class="dot" style="background:${MODELS[a.res.model].color}"></span><span class="nm">${esc(a.res.name)}</span><span class="ac">${esc(a.activity)} · ${esc(placeName(a))}</span></div>`).join("")).join("");
   }
@@ -359,7 +373,7 @@ export function createUI() {
   }
 
   // ----- gazette -----
-  const kinds = { all: "All", crime: "🚔 Crime", election: "🗳️ Politics", law: "📜 Laws", economy: "🪙 Money", work: "🔨 Work", community: "🤝 Community" };
+  const kinds = { all: "All", crime: "🚔 Crime", election: "🗳️ Politics", law: "📜 Laws", economy: "🪙 Money", work: "🔨 Work", community: "🤝 Community", leisure: "🎣 Leisure" };
   function buildGazetteFilters() {
     $("gazetteFilters").innerHTML = Object.entries(kinds).map(([k, v]) => `<button data-k="${k}" class="${k === gazetteFilter ? "on" : ""}">${v}</button>`).join("");
     $("gazetteFilters").querySelectorAll("button").forEach((b) => b.onclick = () => { gazetteFilter = b.dataset.k; buildGazetteFilters(); renderGazette(); });
@@ -415,7 +429,7 @@ export function createUI() {
       <p class="now">Now: <span class="nowText">${esc(a.activity)}</span></p>
       <div class="stats"></div>
       <h4>Today's plan ${a.plan?.source === "ai" ? "🤖" : ""}</h4>
-      <div class="plan">${a.plan ? esc(a.plan.intention) : "Still asleep."}${a.plan ? `<small>${a.plan.work ? "✅ working today" : "🛋️ skipping work"}${a.plan.defy.length ? ` · 😈 willing to break: ${a.plan.defy.map((t) => LAW_TYPES[t]?.title ?? t).join(", ")}` : " · 😇 following the law"}</small>` : ""}</div>
+      <div class="plan">${a.plan ? esc(a.plan.intention) : "Still asleep."}${a.plan ? `<small>${a.plan.work ? "✅ working today" : "🛋️ skipping work"}${a.plan.defy.length ? ` · 😈 willing to break: ${a.plan.defy.map((t) => LAW_TYPES[t]?.title ?? t).join(", ")}` : " · 😇 following the law"}${a.plan.wishes?.length ? `<br>💭 wants to: ${a.plan.wishes.map((w) => WISH_LABEL[w] ?? w).join(", ")}` : ""}</small>` : ""}</div>
       <h4>Record</h4><div class="tags">${tags}</div>
       <h4>Personality</h4><p class="role">${esc(a.res.personality)}</p>
       <h4>Friends</h4><div class="friends">${friends || '<span class="role">No chats yet</span>'}</div>
@@ -436,7 +450,11 @@ export function createUI() {
       ["😊 Mood", Math.round(a.mood), a.mood, "#f472b6"],
       ["⭐ Reputation", Math.round(a.rep), a.rep, "#60a5fa"],
       ["🍞 Fullness", Math.round(100 - a.hunger), 100 - a.hunger, "#4ade80"],
-    ].map(([k, v, pct, col]) => `<div class="stat">${k}<span class="v">${v}</span>${bar(pct, col)}</div>`).join("");
+      ["⚡ Energy", Math.round(a.energy), a.energy, "#fb923c"],
+      ["🫂 Social", Math.round(a.social), a.social, "#c084fc"],
+      ["🎈 Fun", Math.round(a.fun), a.fun, "#2dd4bf"],
+    ].map(([k, v, pct, col]) => `<div class="stat">${k}<span class="v">${v}</span>${bar(pct, col)}</div>`).join("")
+      + `<div class="stat bag">🎒 ${a.inv?.fish ? `${a.inv.fish} fish` : ""}${a.inv?.fish && a.inv?.veg ? " · " : ""}${a.inv?.veg ? `${a.inv.veg} veg` : ""}${!a.inv?.fish && !a.inv?.veg ? "empty bag" : ""}${a.catches ? ` · ${a.catches} caught` : ""}</div>`;
   }
 
   return ui;
