@@ -63,9 +63,9 @@ Gotham is drawn from a pixel-art picture of the town (`public/assets/town.webp`)
 
 There are fishing docks at the waterfall pond and on the river beside the west road.
 
-Beyond the town gate lies **South Gotham**, a newer district built from pieces of the same picture: the Bakery, School, Bank and Post Office on High Street, and six homes on Cottage Row for newcomers. Further south, the **Garden District** has the fenced Community Garden (crop plots, a stage and an event lawn), the Citizens' Market, a cottage and an Apartments building for eight.
+Beyond the town gate lies **South Gotham**, a newer district built from pieces of the same picture: the Bakery, School, Bank and Post Office on High Street, and six homes on Cottage Row for newcomers. Further south, the **Garden District** has the fenced Community Garden (crop plots, a stage and an event lawn), the Citizens' Market, a cottage and **Gotham Heights**, a four-storey apartment block for twelve households (the council can add more units).
 
-To use a different picture, replace `town.webp` and re-trace the rectangles in `mapdata.js`.
+The scripts that build the extended map from the original picture live in `tools/mapgen/` (see its README). To use a different picture, replace `town.webp` and re-trace the rectangles in `mapdata.js`.
 
 ## Society: work, laws, jail, communities and elections
 
@@ -92,6 +92,9 @@ Every resident is free to do what they want, and every choice has consequences.
 - **Community events:** every evening the Community Garden hosts something: a Garden Party, Music Night, a Fishing Contest (the winner takes 30 coins), Market Day (better prices) or a Harvest Festival (a free feast).
 - **Jobs:** 12 workplaces (Town Hall, Library, General Store, Inn, Police, Clinic, Market, farm, Bakery, School, Bank, Post Office), each with its own pay, hours and number of positions. Dex is the police officer (lawbreakers near him get caught more often) and Orion is the town doctor. Skip three shifts and you're fired.
 - **Population:** newcomers running on any of the models move to town when there are free homes and open jobs, and Gotham is a nice place to live. The unemployed look for work every morning. Residents who stay miserable, broke or jobless for days pack up and move away.
+- **Managing the population (Town tab):** set immigration to open borders, jobs-only or closed; offer newcomers a welcome grant from the treasury; add apartment units to Gotham Heights (250 coins for 4 units). Recent departures are listed with their reasons.
+- **Trends and milestones:** charts of population, average mood, average coins, treasury, employment and health over time, and milestones Gotham can reach (first mayor, first couple, 20 residents, full employment, heroes of a disaster, the golden carp, and more).
+- **Skip the night:** at night a ⏭ button fast-forwards to the morning.
 - **Live tab:** every conversation as it happens, arrests in progress, the election, and what each resident is doing right now. Click anyone to follow them.
 - **Gotham Gazette:** every arrest, fine, election and community shake-up is reported. Click an entry or a toast to jump to the resident involved.
 
@@ -123,6 +126,8 @@ public/js/social.js  relationships, romance and rivalry, gossip, diaries, talkin
 public/js/world.js   seasons, weather and health
 public/js/disasters.js disasters, resident reactions, damage and rebuilding
 public/js/sound.js   the generated soundscape
+public/js/stats.js   trends over time and town milestones
+tools/mapgen/        scripts that build the map picture from the original
 public/assets/logo.svg the Gotham crest (also the browser icon)
 public/js/offline.js built-in chatter for offline mode
 public/js/ui.js      sidebar tabs (Live, Town, Chats, Laws, Politics, Gazette), resident card, toasts
