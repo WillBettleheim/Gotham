@@ -76,7 +76,7 @@ export class Life {
     // gardening: plots grow vegetables
     if (a.doing === "garden" && s === "idle" && a.place === "cgarden") {
       a.gardenTime = (a.gardenTime ?? 0) + dt;
-      if (a.gardenTime >= 35) { a.gardenTime = 0; a.inv.veg += 1 + (Math.random() < 0.3 ? 1 : 0); }
+      if (a.gardenTime >= 35) { a.gardenTime = 0; const n = 1 + (Math.random() < 0.3 ? 1 : 0); a.inv.veg += n; a.vegGrown = (a.vegGrown ?? 0) + n; }
     }
   }
 
@@ -88,6 +88,7 @@ export class Life {
     let r = Math.random() * FISH.reduce((s, f) => s + f.w, 0), fish = FISH[0];
     for (const f of FISH) { if ((r -= f.w) <= 0) { fish = f; break; } }
     a.inv.fish++; a.inv.fishValue += fish.value; a.catches++;
+    if (fish.value >= 12) a.bigCatches = (a.bigCatches ?? 0) + 1;
     a.fun = clamp(a.fun + 6); a.mood = clamp(a.mood + 2);
     if (this.event?.active && this.event.id === "contest") this.event.scores[a.id] = (this.event.scores[a.id] ?? 0) + 1;
     a.lastCatch = fish.name;
@@ -128,7 +129,10 @@ export class Life {
   // ----- free will: score what to do next -----
   options(a) {
     const s = this.society, opts = [];
-    const add = (kind, score, place, label) => { if (score > 0) opts.push({ kind, score: score + (a.plan?.wishes?.includes(kind) ? 30 : 0), place, label }); };
+    const auto = this.society.autonomy;
+    const add = (kind, score, place, label) => { if (score > 0) opts.push({ kind, score: score + (a.plan?.wishes?.includes(kind) ? 30 : 0) + auto.bias(a, kind), place, label }); };
+    const apply = auto.applyOption(a);
+    if (apply) opts.push(apply);
     const ev = this.event;
     if (a.hunger > 55) {
       if ((a.inv.fish || a.inv.veg) && a.coins < 30) add("eat", 40 + a.hunger, "home", "heading home to cook");
