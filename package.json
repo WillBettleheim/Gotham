@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "description": "A 2D pixel-art town where AI residents from different labs live, work, chat, vote and build together.",
   "author": "WillBettleheim",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WillBettleheim/Gotham.git"
+  },
+  "homepage": "https://github.com/WillBettleheim/Gotham#readme",
   "type": "module",
   "private": true,
   "scripts": {
